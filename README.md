@@ -3,7 +3,7 @@ This repo contains a growing set of OBS shaders developed by FiniteSingularity o
 
 The shaders are broken up by directory indicating the plugin required to use them.  Currently, the shaders are only supported in [StreamFX](https://obsproject.com/forum/resources/streamfx-for-obs%C2%AE-studio.578/), however future plans are to also support them in [OBS Shader Filter](https://obsproject.com/forum/resources/obs-shaderfilter.775/).
 
-**NOTE- Current version requires StreamFX v0.10.1, and will not work with the v0.11 beta.**
+**NOTE- Current version requires StreamFX v0.10.1 [here](https://github.com/Xaymar/obs-StreamFX/releases/tag/0.10.1), and will not work with the v0.11 beta.**
 
 ## Using the shaders in StreamFX
 1. Install StreamFX following the instructions at the link above.
