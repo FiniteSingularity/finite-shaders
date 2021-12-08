@@ -15,36 +15,22 @@ uniform texture2d InputA<Z
 #define PI      3.14159f
 #define SIN30   0.5f
 #define COS30   0.8660254f
-#define R       2.0f
-#define S			  2.3094011f
-#define T			  1.1547005f
-#define POINTY  0
-#define FLAT    1
+#define TAN30   0.5773503f
+#define BLOBS   0
+#define BLINDS  1
 
 /**********************************
  * Modifyable Hexagon Parameters: *
  **********************************/
-// HexagonScale- Scale/Size of the hexagon relative
-//               to frame width.
-uniform float HexagonScale<
-	string name = "Hexagon Scale";
+// Scale- Scale/Size of the rhombus relative
+//        to frame width.
+uniform float Scale<
+	string name = "Rhombus Scale";
 	string field_type = "slider";
 	float minimum = 1.0;
 	float maximum = 1000.0;
 	float step = 1.0;
 > = 40.0;
-
-// HexagonOrientation- Orientation of the hexagon grid.
-//                     Pointy- Hexagons with pointy side up.
-//                     Flat- Hexagons with flat side up.
-uniform int HexagonOrientation<
-	string name = "Hexagon Orientation";
-	string field_type = "enum";
-	int enum_0 = POINTY;
-	string enum_0_name = "Pointy";
-	int enum_1 = FLAT;
-	string enum_1_name = "Flat";
-> = 0;
 
 // RevealDistance- How far into the frame hexagons shoudl be
 //                 drawn. Scale of 0 to 100.
@@ -93,6 +79,15 @@ uniform float TransitionAngle<
 	//float scale = DEG2RAD;
 > = 0.0;
 
+uniform int TransitionBBEffect<
+	string name = "Transition Effect";
+	string field_type = "enum";
+	int enum_0 = BLOBS;
+	string enum_0_name = "Blobs";
+	int enum_1 = BLINDS;
+	string enum_1_name = "Blinds";
+> = 0;
+
 sampler_state ClampSampler {
 	AddressU  = Clamp;
 	AddressV  = Clamp;
@@ -111,50 +106,41 @@ VertData VSDefault(VertData v_in) {
 	return vert_out;
 }
 
-// Returns the internal hexagonal distance from
-// the center of a given hexagon to a coordinate.
-float hexDist(float2 coord, float2 hex_center){
-	float2 delta = abs(hex_center-coord);
-	float diagonal_dist = SIN30*delta.x + COS30*delta.y;
-	return max(delta.x, diagonal_dist);
-}
-
-// Converts cartesian coordinates to hexagonal 
-// index coordinates.
-float2 cartToHex(float2 coord){
-	float2x2 Xm = { 1./(2.*R), -1./S,
-	                1./R,       0. };
-	float2x2 Ym = { 1./(2.*R), 1./S,
-	               -1./(2.*R), 1./S };
-	float2 Mi = floor(mul(Xm, coord));
-	float2 Mj = floor(mul(Ym, coord));
-	return float2(
-		floor((Mi.x + Mi.y + 2.)/3.),
-		floor((Mj.x + Mj.y + 2.)/3.)
-	);
-}
-
-// Converts hexagonal index coordinates to
-// cartesian coordinates.
-float2 hexToCart(float2 hex_coord) {
-	return float2(
-		hex_coord.x*(2.*R) + hex_coord.y*R,
-		hex_coord.y*(S+T)
-	);
-}
-
 // Returns the cartesian coordinate of the center
-// of the hexagon containing the coordinate coord
-// given a regular hexagon grid size, real_r
-float2 coordToHexCenter(float2 coord, float real_r) {
-	float scale = real_r/R;
-	float2 hex_coord = cartToHex(coord/scale);
-	return hexToCart(hex_coord) * scale;
-}
+// of the  rhombus containing the coordinate coord
+// given a rhombus tesselation.
+float2 coordToRhombusCenter(float2 coord, float width) {
+	float v = floor(coord.y/(width*(1+SIN30)));
+	float u = floor(coord.x/(width*COS30));
+	bool v_even = fmod(v, 2.0) == 0.0;
+	bool u_even = fmod(u, 2.0) == 0.0;
+	float2 local_coord = coord - float2(u*width*COS30, v*width*(1+SIN30));
 
-// Transforms the coordinate x,y to y,x.
-float2 reverseCoords(float2 coord) {
-	return float2(coord.y, coord.x);
+	if((v_even && u_even) || (!v_even && !u_even)) {
+		// Case A
+		float2 local_coord_prime = float2(
+			local_coord.x,
+			local_coord.y - local_coord.x * TAN30
+		);
+		if(local_coord_prime.y < 0.0) { // in bottom triangle
+			return float2((u+1.)*width*COS30, v*width*(1.+SIN30));
+		} else if(local_coord_prime.y > width) { //in top triangle
+			return float2(u*width*COS30, (v+1.)*width*(1.+SIN30));
+		}
+	} else {
+		// Case B
+		float2 local_coord_prime = float2(
+			local_coord.x,
+			local_coord.y - (width*COS30-local_coord.x) * TAN30
+		);
+		if(local_coord_prime.y < 0.0) { // in bottom triangle
+			return float2(u*width*COS30, v*width*(1.+SIN30));
+		} else if(local_coord_prime.y > width) { // in top triangle
+			return float2((u+1.)*width*COS30, (v+1.)*width*(1.+SIN30));
+		}
+	}
+	// in center rhombus
+	return float2( (u+0.5)*width*COS30, (v+0.5)*width*(1.+SIN30));
 }
 
 // Returns the interesction of the view edge and a 
@@ -229,11 +215,11 @@ float2 StartStopOffset(float2 intersect, float radAngle, float transition_size) 
 float4 PSDefault(VertData v_in) : TARGET {
 	float epsilon = EPS;
 	float2 frame_coord = v_in.uv * ViewSize.xy;
-	float s = ViewSize.x/HexagonScale;
+	float width = ViewSize.x/Scale;
+
 	float transition_size = RevealTransitionSize;
 	float angle = TransitionAngle;
 	float radAngle = - angle * DEG2RAD;
-	int orientation = HexagonOrientation;
 
 	bool horizontalAngle = abs(sin(radAngle)) < epsilon;
 	bool verticalAngle = abs(cos(radAngle)) < epsilon;
@@ -246,7 +232,7 @@ float4 PSDefault(VertData v_in) : TARGET {
 
 	float2 delta = {0., 0.};
 	if(!horizontalAngle && !verticalAngle) {
-		delta = StartStopOffset(endIntersect, radAngle, transition_size + s);
+		delta = StartStopOffset(endIntersect, radAngle, transition_size + width);
 	} else {
 		delta = float2(
 			transition_size * 1.05 * cos(radAngle),
@@ -264,25 +250,19 @@ float4 PSDefault(VertData v_in) : TARGET {
 
 	float b = 0.0;
 	float m = 0.0;
-
+	
 	if(!horizontalAngle) {
 		m = -(endPoint.x - startPoint.x)/(endPoint.y - startPoint.y);
 		b = - m * transition_intersect.x + transition_intersect.y;
 	}
 
-	float2 local_coord = frame_coord;
-	if(orientation == FLAT) {
-		local_coord = reverseCoords(frame_coord);
-	}
-
-	float2 local_nearest = coordToHexCenter(local_coord, s);
-	float2 frame_nearest = local_nearest;
-	if(orientation == FLAT) {
-		frame_nearest = reverseCoords(local_nearest);
-	}
-	
 	bool vertical = abs(min(endIntersect.y, startIntersect.y)) < epsilon;
 	float dist_to_trans = 0.0;
+
+	float2 local_coord = frame_coord;
+	float2 sample_coord = coordToRhombusCenter(local_coord, width);
+	float2 frame_nearest = sample_coord;
+
 	if(!vertical) {
 		float rdx = !horizontalAngle ? (frame_nearest.y - b)/m : transition_intersect.x;
 		bool xp = (endPoint.x - startPoint.x) > 0;
@@ -307,15 +287,20 @@ float4 PSDefault(VertData v_in) : TARGET {
 		dist_to_trans = yp ? -sin(radAngle) * (rdy - frame_nearest.y) : sin(radAngle) * (frame_nearest.y - rdy);
 	}
 
-	float4 pixel = InputA.Sample(ClampSampler, frame_nearest / ViewSize.xy);
+	float4 pixel = InputA.Sample(ClampSampler, sample_coord / ViewSize.xy);
 	float transition_ratio = 1.0 - max((transition_size - dist_to_trans)/(transition_size), 0.0);
-	float transition_hex_size = transition_ratio * s;
-	float dist = hexDist(local_coord, local_nearest);
+	float transition_rhomb_size2 = pow(width * transition_ratio, 2);
+	float dist2 = 0.0;
+	if(TransitionBBEffect == BLOBS) {
+		dist2 = pow(frame_nearest.x - local_coord.x, 2) + pow(frame_nearest.y - local_coord.y, 2);
+	} else {
+		dist2 = pow(frame_nearest - local_coord, 2); //-- horisontal swipey thing
+	}
 
-	if(transition_hex_size < dist) {
+	if(transition_rhomb_size2 < dist2) {
 		return TransitionColor;
 	}
-	return float4(pixel.rgb, 1.0);
+	return pixel;
 }
 
 technique Draw
