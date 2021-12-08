@@ -20,9 +20,9 @@ uniform texture2d InputA<Z
 #define BLINDS  1
 
 /**********************************
- * Modifyable Hexagon Parameters: *
+ * Modifyable Q-Bert Parameters: *
  **********************************/
-// Scale- Scale/Size of the rhombus relative
+// Scale- Scale/Size of the Q-bert rhombus relative
 //        to frame width.
 uniform float Scale<
 	string name = "Rhombus Scale";
@@ -42,15 +42,15 @@ uniform float RevealDistance<
 	float step = 0.1;
 	float scale = 0.01;
 > = 0.0;
-// Transparent- If true, all non-hexagon-affected pixels will
+// Transparent- If true, all non-rhombus-affected pixels will
 //              be transparent, allowing for layering effects.
 uniform bool ITransparent<
-	string name = "Make non hexagon pixels transparent";
+	string name = "Make non rhombus pixels transparent";
 > = false;
 
 // RevealTransitionSize- Width (in px) of the transition zone.
 //                       At the transition line, a zone of appearing
-//                       hexagons will grow in the transition zone from
+//                       rhombus will grow in the transition zone from
 //                       zero to full size.
 uniform float RevealTransitionSize<
 	string name = "Transition Zone Size";

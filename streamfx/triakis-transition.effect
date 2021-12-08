@@ -20,9 +20,9 @@ uniform texture2d InputA<Z
 #define BLINDS  1
 
 /**********************************
- * Modifyable Hexagon Parameters: *
+ * Modifyable Triakis Parameters: *
  **********************************/
-// Scale- Scale/Size of the rhombus relative
+// Scale- Scale/Size of the triakis pattern relative
 //        to frame width.
 uniform float Scale<
 	string name = "Triangle Scale";
@@ -32,7 +32,7 @@ uniform float Scale<
 	float step = 1.0;
 > = 40.0;
 
-// RevealDistance- How far into the frame hexagons shoudl be
+// RevealDistance- How far into the frame triangles should be
 //                 drawn. Scale of 0 to 100.
 uniform float RevealDistance<
 	string name = "Reveal Distance";
@@ -42,10 +42,10 @@ uniform float RevealDistance<
 	float step = 0.1;
 	float scale = 0.01;
 > = 0.0;
-// Transparent- If true, all non-hexagon-affected pixels will
+// Transparent- If true, all non-triangle-affected pixels will
 //              be transparent, allowing for layering effects.
 uniform bool ITransparent<
-	string name = "Make non hexagon pixels transparent";
+	string name = "Make non triangle pixels transparent";
 > = false;
 
 // RevealTransitionSize- Width (in px) of the transition zone.
@@ -107,8 +107,8 @@ VertData VSDefault(VertData v_in) {
 }
 
 // Returns the cartesian coordinate of the center
-// of the  rhombus containing the coordinate coord
-// given a rhombus tesselation.
+// of the triangle containing the coordinate coord
+// given a triangle tesselation width.
 float2 coordToTriCenter(float2 coord, float width) {
 	float v = floor(coord.y/(width*(1+SIN30)));
 	float u = floor(coord.x/(width*COS30));
