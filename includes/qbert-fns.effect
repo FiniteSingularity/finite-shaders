@@ -1,0 +1,36 @@
+// Returns the cartesian coordinate of the center
+// of the  rhombus containing the coordinate coord
+// given a rhombus tesselation.
+float2 coordToRhombusCenter(float2 coord, float width) {
+	float v = floor(coord.y/(width*(1+SIN30)));
+	float u = floor(coord.x/(width*COS30));
+	bool v_even = fmod(v, 2.0) == 0.0;
+	bool u_even = fmod(u, 2.0) == 0.0;
+	float2 local_coord = coord - float2(u*width*COS30, v*width*(1+SIN30));
+
+	if((v_even && u_even) || (!v_even && !u_even)) {
+		// Case A
+		float2 local_coord_prime = float2(
+			local_coord.x,
+			local_coord.y - local_coord.x * TAN30
+		);
+		if(local_coord_prime.y < 0.0) { // in bottom triangle
+			return float2((u+1.)*width*COS30, v*width*(1.+SIN30));
+		} else if(local_coord_prime.y > width) { //in top triangle
+			return float2(u*width*COS30, (v+1.)*width*(1.+SIN30));
+		}
+	} else {
+		// Case B
+		float2 local_coord_prime = float2(
+			local_coord.x,
+			local_coord.y - (width*COS30-local_coord.x) * TAN30
+		);
+		if(local_coord_prime.y < 0.0) { // in bottom triangle
+			return float2(u*width*COS30, v*width*(1.+SIN30));
+		} else if(local_coord_prime.y > width) { // in top triangle
+			return float2((u+1.)*width*COS30, (v+1.)*width*(1.+SIN30));
+		}
+	}
+	// in center rhombus
+	return float2( (u+0.5)*width*COS30, (v+0.5)*width*(1.+SIN30));
+}

@@ -1,25 +1,7 @@
-uniform float4x4 ViewProj<
-	bool automatic = true;
-	string name = "View Projection Matrix";
->;
-uniform float4 ViewSize<
-	bool automatic = true;
->;
-uniform texture2d InputA<Z
-	bool automatic = true;
->;
-
-// Constants
-#define DEG2RAD -0.0174533f
-#define EPS     0.000001f
-#define PI      3.14159f
-#define SIN30   0.5f
-#define COS30   0.8660254f
-#define R       2.0f
-#define S			  2.3094011f
-#define T			  1.1547005f
-#define POINTY  0
-#define FLAT    1
+#include "../includes/streamfx.effect"
+#include "../includes/constants.effect"
+#include "../includes/transition-fns.effect"
+#include "../includes/hex-fns.effect"
 
 /**********************************
  * Modifyable Hexagon Parameters: *
@@ -37,6 +19,8 @@ uniform float HexagonScale<
 // HexagonOrientation- Orientation of the hexagon grid.
 //                     Pointy- Hexagons with pointy side up.
 //                     Flat- Hexagons with flat side up.
+#define POINTY  0
+#define FLAT    1
 uniform int HexagonOrientation<
 	string name = "Hexagon Orientation";
 	string field_type = "enum";
@@ -98,133 +82,6 @@ sampler_state ClampSampler {
 	AddressV  = Clamp;
 	Filter    = Anisotropy;
 };
-
-struct VertData {
-	float4 pos : POSITION;
-	float2 uv  : TEXCOORD0;
-};
-
-VertData VSDefault(VertData v_in) {
-	VertData vert_out;
-	vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
-	vert_out.uv  = v_in.uv;
-	return vert_out;
-}
-
-// Returns the internal hexagonal distance from
-// the center of a given hexagon to a coordinate.
-float hexDist(float2 coord, float2 hex_center){
-	float2 delta = abs(hex_center-coord);
-	float diagonal_dist = SIN30*delta.x + COS30*delta.y;
-	return max(delta.x, diagonal_dist);
-}
-
-// Converts cartesian coordinates to hexagonal 
-// index coordinates.
-float2 cartToHex(float2 coord){
-	float2x2 Xm = { 1./(2.*R), -1./S,
-	                1./R,       0. };
-	float2x2 Ym = { 1./(2.*R), 1./S,
-	               -1./(2.*R), 1./S };
-	float2 Mi = floor(mul(Xm, coord));
-	float2 Mj = floor(mul(Ym, coord));
-	return float2(
-		floor((Mi.x + Mi.y + 2.)/3.),
-		floor((Mj.x + Mj.y + 2.)/3.)
-	);
-}
-
-// Converts hexagonal index coordinates to
-// cartesian coordinates.
-float2 hexToCart(float2 hex_coord) {
-	return float2(
-		hex_coord.x*(2.*R) + hex_coord.y*R,
-		hex_coord.y*(S+T)
-	);
-}
-
-// Returns the cartesian coordinate of the center
-// of the hexagon containing the coordinate coord
-// given a regular hexagon grid size, real_r
-float2 coordToHexCenter(float2 coord, float real_r) {
-	float scale = real_r/R;
-	float2 hex_coord = cartToHex(coord/scale);
-	return hexToCart(hex_coord) * scale;
-}
-
-// Transforms the coordinate x,y to y,x.
-float2 reverseCoords(float2 coord) {
-	return float2(coord.y, coord.x);
-}
-
-// Returns the interesction of the view edge and a 
-// vector passing through the center of the view.
-float2 edgeIntersection(float theta) {
-	float eps = EPS;
-	float pi = PI;
-
-	float a = ViewSize.x;
-	float b = ViewSize.y;
-	float x0 = ViewSize.x/2.;
-	float y0 = ViewSize.y/2.;
-	float rectAtan = atan2(b, a);
-	float tanTheta = tan(theta);
-
-	float s_theta = sin(theta);
-	float c_theta = cos(theta);
-
-	float s_theta_clamp = (abs(s_theta) > eps) ? s_theta : eps;
-	float c_theta_clamp = (abs(c_theta) > eps) ? c_theta : eps;
-
-	float x_factor = 1;
-	float y_factor = 1;
-
-	if((theta > -rectAtan) && (theta <= rectAtan)) {
-		y_factor = -1;
-	} else if((theta > rectAtan) && (theta <= (pi - rectAtan))) {
-		y_factor = -1;
-	} else if((theta > (pi - rectAtan) && (theta <= -(pi - rectAtan)))) {
-		x_factor = -1;
-	} else {
-		x_factor = -1;
-	}
-
-	float2 z1 = float2(
-								x0 + x_factor * (b * c_theta)/(2. * s_theta_clamp),
-								y_factor * b/2. + y0
-							);
-	float2 z2 = float2(
-								x_factor * a/2. + x0,
-								y0 + y_factor * (a*s_theta)/(2. * c_theta_clamp)
-							);
-
-	return ( (z1.x > 0.0) && (z1.x < a) ) ? z1 : z2;
-}
-
-// Calculates the start/stop offset necessary to keep transition
-// zone off-frame given an angle, edge intersect, and transition
-// zone size.
-float2 StartStopOffset(float2 intersect, float radAngle, float transition_size) {
-	float2 nc = {0., 0.};
-	float theta_delta = 0.;
-	float epsilon = EPS;
-
-	nc.x = (intersect.x < ViewSize.x/2.) ? (ViewSize.x - intersect.x) : intersect.x;
-	nc.y = (intersect.y < ViewSize.y/2.) ? (ViewSize.y - intersect.y) : intersect.y;
-
-	float m = (nc.y - ViewSize.y/2.) / (nc.x - ViewSize.x/2.);
-	float zero_angle = atan(m);
-
-	if(abs(nc.x - ViewSize.x) < epsilon) {
-		theta_delta = (ViewSize.y - nc.y) * sin(zero_angle);
-	} else {
-		theta_delta = (ViewSize.x - nc.x) * cos(zero_angle);
-	}
-	return float2(
-		(theta_delta + transition_size) * cos(radAngle),
-		-(theta_delta + transition_size) * sin(radAngle)
-	);
-}
 
 float4 PSDefault(VertData v_in) : TARGET {
 	float epsilon = EPS;

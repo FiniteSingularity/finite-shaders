@@ -11,8 +11,9 @@ The shaders are broken up by directory indicating the plugin required to use the
 1. Install StreamFX following the instructions at the link above.
 2. Open the "Filters" menu for the source/scene you would like to apply the shader to.
 3. Click the + and add a new Shader filter.
-4. Click "Browse" in the shader filter panel, and navigate to the `streamfx` directory at the root level of this project. Select the `.effect` file you want to use.
+4. Click "Browse" in the shader filter panel, and navigate to the `streamfx` directory at the root level of _this_ project. Select the `.effect` file you want to use.
 5. Enjoy all of the glorious shader goodness!
+6. Note- the entire repository directory is needed to use these shaders due to include files. Please do not move an effect file outside of this directory structure.
 
 ## Available Shaders
 

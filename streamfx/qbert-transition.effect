@@ -1,23 +1,8 @@
-uniform float4x4 ViewProj<
-	bool automatic = true;
-	string name = "View Projection Matrix";
->;
-uniform float4 ViewSize<
-	bool automatic = true;
->;
-uniform texture2d InputA<Z
-	bool automatic = true;
->;
+#include "../includes/streamfx.effect"
+#include "../includes/constants.effect"
+#include "../includes/transition-fns.effect"
+#include "../includes/qbert-fns.effect"
 
-// Constants
-#define DEG2RAD -0.0174533f
-#define EPS     0.000001f
-#define PI      3.14159f
-#define SIN30   0.5f
-#define COS30   0.8660254f
-#define TAN30   0.5773503f
-#define BLOBS   0
-#define BLINDS  1
 
 /**********************************
  * Modifyable Q-Bert Parameters: *
@@ -79,6 +64,8 @@ uniform float TransitionAngle<
 	//float scale = DEG2RAD;
 > = 0.0;
 
+#define BLOBS   0
+#define BLINDS  1
 uniform int TransitionBBEffect<
 	string name = "Transition Effect";
 	string field_type = "enum";
@@ -94,123 +81,6 @@ sampler_state ClampSampler {
 	Filter    = Anisotropy;
 };
 
-struct VertData {
-	float4 pos : POSITION;
-	float2 uv  : TEXCOORD0;
-};
-
-VertData VSDefault(VertData v_in) {
-	VertData vert_out;
-	vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
-	vert_out.uv  = v_in.uv;
-	return vert_out;
-}
-
-// Returns the cartesian coordinate of the center
-// of the  rhombus containing the coordinate coord
-// given a rhombus tesselation.
-float2 coordToRhombusCenter(float2 coord, float width) {
-	float v = floor(coord.y/(width*(1+SIN30)));
-	float u = floor(coord.x/(width*COS30));
-	bool v_even = fmod(v, 2.0) == 0.0;
-	bool u_even = fmod(u, 2.0) == 0.0;
-	float2 local_coord = coord - float2(u*width*COS30, v*width*(1+SIN30));
-
-	if((v_even && u_even) || (!v_even && !u_even)) {
-		// Case A
-		float2 local_coord_prime = float2(
-			local_coord.x,
-			local_coord.y - local_coord.x * TAN30
-		);
-		if(local_coord_prime.y < 0.0) { // in bottom triangle
-			return float2((u+1.)*width*COS30, v*width*(1.+SIN30));
-		} else if(local_coord_prime.y > width) { //in top triangle
-			return float2(u*width*COS30, (v+1.)*width*(1.+SIN30));
-		}
-	} else {
-		// Case B
-		float2 local_coord_prime = float2(
-			local_coord.x,
-			local_coord.y - (width*COS30-local_coord.x) * TAN30
-		);
-		if(local_coord_prime.y < 0.0) { // in bottom triangle
-			return float2(u*width*COS30, v*width*(1.+SIN30));
-		} else if(local_coord_prime.y > width) { // in top triangle
-			return float2((u+1.)*width*COS30, (v+1.)*width*(1.+SIN30));
-		}
-	}
-	// in center rhombus
-	return float2( (u+0.5)*width*COS30, (v+0.5)*width*(1.+SIN30));
-}
-
-// Returns the interesction of the view edge and a 
-// vector passing through the center of the view.
-float2 edgeIntersection(float theta) {
-	float eps = EPS;
-	float pi = PI;
-
-	float a = ViewSize.x;
-	float b = ViewSize.y;
-	float x0 = ViewSize.x/2.;
-	float y0 = ViewSize.y/2.;
-	float rectAtan = atan2(b, a);
-	float tanTheta = tan(theta);
-
-	float s_theta = sin(theta);
-	float c_theta = cos(theta);
-
-	float s_theta_clamp = (abs(s_theta) > eps) ? s_theta : eps;
-	float c_theta_clamp = (abs(c_theta) > eps) ? c_theta : eps;
-
-	float x_factor = 1;
-	float y_factor = 1;
-
-	if((theta > -rectAtan) && (theta <= rectAtan)) {
-		y_factor = -1;
-	} else if((theta > rectAtan) && (theta <= (pi - rectAtan))) {
-		y_factor = -1;
-	} else if((theta > (pi - rectAtan) && (theta <= -(pi - rectAtan)))) {
-		x_factor = -1;
-	} else {
-		x_factor = -1;
-	}
-
-	float2 z1 = float2(
-								x0 + x_factor * (b * c_theta)/(2. * s_theta_clamp),
-								y_factor * b/2. + y0
-							);
-	float2 z2 = float2(
-								x_factor * a/2. + x0,
-								y0 + y_factor * (a*s_theta)/(2. * c_theta_clamp)
-							);
-
-	return ( (z1.x > 0.0) && (z1.x < a) ) ? z1 : z2;
-}
-
-// Calculates the start/stop offset necessary to keep transition
-// zone off-frame given an angle, edge intersect, and transition
-// zone size.
-float2 StartStopOffset(float2 intersect, float radAngle, float transition_size) {
-	float2 nc = {0., 0.};
-	float theta_delta = 0.;
-	float epsilon = EPS;
-
-	nc.x = (intersect.x < ViewSize.x/2.) ? (ViewSize.x - intersect.x) : intersect.x;
-	nc.y = (intersect.y < ViewSize.y/2.) ? (ViewSize.y - intersect.y) : intersect.y;
-
-	float m = (nc.y - ViewSize.y/2.) / (nc.x - ViewSize.x/2.);
-	float zero_angle = atan(m);
-
-	if(abs(nc.x - ViewSize.x) < epsilon) {
-		theta_delta = (ViewSize.y - nc.y) * sin(zero_angle);
-	} else {
-		theta_delta = (ViewSize.x - nc.x) * cos(zero_angle);
-	}
-	return float2(
-		(theta_delta + transition_size) * cos(radAngle),
-		-(theta_delta + transition_size) * sin(radAngle)
-	);
-}
 
 float4 PSDefault(VertData v_in) : TARGET {
 	float epsilon = EPS;
