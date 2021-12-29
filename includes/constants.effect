@@ -1,7 +1,8 @@
 // Constants
 #define DEG2RAD -0.0174533f
-#define EPS     0.000001f
-#define PI      3.14159f
-#define SIN30   0.5f
-#define COS30   0.8660254f
-#define TAN30   0.5773503f
+#define EPS      0.000001f
+#define PI       3.14159f
+#define SIN30    0.5f
+#define COS30    0.8660254f
+#define TAN30    0.5773503f
+#define EQ_TRI_H 0.8660254f

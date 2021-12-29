@@ -1,0 +1,182 @@
+#include "../includes/streamfx.effect"
+#include "../includes/constants.effect"
+#include "../includes/transition-fns.effect"
+#include "../includes/triangle-fns.effect"
+
+/***********************************
+ * Modifyable Triangle Parameters: *
+ ***********************************/
+// TriangleScale- Scale/Size of the triangles relative
+//                to frame width.
+uniform float TriangleScale<
+	string name = "Triangle Scale";
+	string field_type = "slider";
+	float minimum = 1.0;
+	float maximum = 1000.0;
+	float step = 1.0;
+> = 40.0;
+
+// RevealDistance- How far into the frame triangles should be
+//                 drawn. Scale of 0 to 100.
+uniform float RevealDistance<
+	string name = "Reveal Distance";
+	string field_type = "slider";
+	float minimum = 0.0;
+	float maximum = 100.0;
+	float step = 0.1;
+	float scale = 0.01;
+> = 0.0;
+
+// Transparent- If true, all non-triangle-affected pixels will
+//              be transparent, allowing for layering effects.
+uniform bool ITransparent<
+	string name = "Make non triangle pixels transparent";
+> = false;
+
+// RevealTransitionSize- Width (in px) of the transition zone.
+//                       At the transition line, a zone of appearing
+//                       triangles will grow in the transition zone from
+//                       zero to full size.
+uniform float RevealTransitionSize<
+	string name = "Transition Zone Size";
+	string field_type = "slider";
+	float minimum = 0.0;
+	float maximum = 4000.0;
+	float step = 1.0;
+> = 100.0;
+
+// TransitionColor- RGBA color of the transition zone background.
+uniform float4 TransitionColor<
+	string name = "Transition Background Color (R[0], G[1], B[2], A[3])";
+	string field_type = "slider";
+	float4 minimum = {0., 0., 0., 0.};
+	float4 maximum = {255., 255., 255., 100.};
+	float4 step = {0.01, 0.01, 0.01, 0.01};
+	float4 scale = {0.0039216, 0.0039216, 0.0039216, 0.01};
+> = {0., 0., 0., 50.};
+
+uniform float TransitionAngle<
+	string name = "Transition Angle";
+	string field_type = "slider";
+	float minimum = -180.0;
+	float maximum = 180.0;
+	float step = 0.01;
+	//float scale = DEG2RAD;
+> = 0.0;
+
+#define BLOBS   0
+#define BLINDS  1
+uniform int TransitionBBEffect<
+	string name = "Transition Effect";
+	string field_type = "enum";
+	int enum_0 = BLOBS;
+	string enum_0_name = "Blobs";
+	int enum_1 = BLINDS;
+	string enum_1_name = "Blinds";
+> = 0;
+
+sampler_state ClampSampler {
+	AddressU  = Clamp;
+	AddressV  = Clamp;
+	Filter    = Anisotropy;
+};
+
+float4 PSDefault(VertData v_in) : TARGET {
+  float2 frame_coord = v_in.uv * ViewSize.xy;
+	float width = ViewSize.x/TriangleScale;
+
+	float transition_size = RevealTransitionSize;
+	float angle = TransitionAngle;
+	float radAngle = - angle * DEG2RAD;
+
+  bool horizontalAngle = abs(sin(radAngle)) < EPS;
+	bool verticalAngle = abs(cos(radAngle)) < EPS;
+
+	float2 endIntersect = edgeIntersection(radAngle);
+	float2 startIntersect = {
+						abs(endIntersect.x - ViewSize.x),
+						abs(endIntersect.y - ViewSize.y)
+					};
+
+	float2 delta = {0., 0.};
+	if(!horizontalAngle && !verticalAngle) {
+		delta = StartStopOffset(endIntersect, radAngle, transition_size + width);
+	} else {
+		delta = float2(
+			transition_size * 1.05 * cos(radAngle),
+			-transition_size * 1.05 * sin(radAngle)
+		);
+	}
+
+	float2 endPoint = float2(endIntersect.x + delta.x, endIntersect.y + delta.y);
+	float2 startPoint = float2(
+												startIntersect.x - (delta.x - transition_size * cos(radAngle)),
+												startIntersect.y - (delta.y + transition_size * sin(radAngle))
+											);
+
+	float2 transition_intersect = lerp(startPoint, endPoint, RevealDistance.xx);
+
+	float b = 0.0;
+	float m = 0.0;
+	
+	if(!horizontalAngle) {
+		m = -(endPoint.x - startPoint.x)/(endPoint.y - startPoint.y);
+		b = - m * transition_intersect.x + transition_intersect.y;
+	}
+
+	bool vertical = abs(min(endIntersect.y, startIntersect.y)) < EPS;
+	float dist_to_trans = 0.0;
+
+  float2 local_coord = frame_coord;
+  float2 sample_coord = coordToTriangleCenter(local_coord, width);
+  float2 frame_nearest = sample_coord;
+
+  if(!vertical) {
+		float rdx = !horizontalAngle ? (frame_nearest.y - b)/m : transition_intersect.x;
+		bool xp = (endPoint.x - startPoint.x) > 0;
+		if( (xp && (frame_nearest.x > rdx)) || (!xp && (frame_nearest.x < rdx)) ) {
+			if(ITransparent) {
+				return float4(0, 0, 0, 0);
+			}
+			float4 pixel = InputA.Sample(ClampSampler, v_in.uv);
+			return pixel;
+		}
+		dist_to_trans = xp ? cos(radAngle) * (rdx - frame_nearest.x) : -cos(radAngle) * (frame_nearest.x - rdx);
+	} else {
+		float rdy = !verticalAngle ? m*frame_nearest.x + b : transition_intersect.y;
+		bool yp = (endPoint.y - startPoint.y) > 0;
+		if( (yp && (frame_nearest.y > rdy)) || (!yp && (frame_nearest.y < rdy)) ) {
+			if(ITransparent) {
+				return float4(0, 0, 0, 0);
+			}
+			float4 pixel = InputA.Sample(ClampSampler, v_in.uv);
+			return pixel;
+		}		
+		dist_to_trans = yp ? -sin(radAngle) * (rdy - frame_nearest.y) : sin(radAngle) * (frame_nearest.y - rdy);
+	}
+
+	float4 pixel = InputA.Sample(ClampSampler, sample_coord / ViewSize.xy);
+	float transition_ratio = 1.0 - max((transition_size - dist_to_trans)/(transition_size), 0.0);
+	float transition_rhomb_size2 = pow(width * transition_ratio, 2);
+	float dist2 = 0.0;
+	if(TransitionBBEffect == BLOBS) {
+		dist2 = pow(frame_nearest.x - local_coord.x, 2) + pow(frame_nearest.y - local_coord.y, 2);
+	} else {
+		dist2 = pow(frame_nearest - local_coord, 2); //-- horisontal swipey thing
+	}
+
+	if(transition_rhomb_size2 < dist2) {
+		return TransitionColor;
+	}
+
+  return float4(pixel.rgb, 1.0);
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSDefault(v_in); 
+	}
+}

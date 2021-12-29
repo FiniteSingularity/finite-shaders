@@ -1,0 +1,25 @@
+
+float2 coordToTriangleCenter(float2 coord, float width) {
+  float h = EQ_TRI_H * width;
+  float v = floor(coord.y/h);
+  float u = floor(coord.x/(0.5 * width));
+  bool v_even = fmod(v, 2.0) == 0.0;
+  bool u_even = fmod(u, 2.0) == 0.0;
+  float2 local_coord = coord - float2(u*0.5*width, v*h);
+  if((v_even && u_even) || (!v_even && !u_even)) {
+    float x_prime = local_coord.x - 0.5 * width;
+    float u_prime = x_prime * COS30 + local_coord.y * SIN30;
+    if(u_prime <= 0) {
+      return float2(u*0.5*width, (v + 0.3333) * h);
+    } else {
+      return float2((u+1.)*0.5*width, (v + 0.6667) * h);
+    }
+  } else {
+    float u_prime = local_coord.x * COS30 - local_coord.y * SIN30;
+    if(u_prime <= 0) {
+      return float2(u*0.5*width, (v + 0.6667) * h);
+    } else {
+      return float2((u+1.)*0.5*width, (v + 0.3333) * h);
+    }
+  }
+}
