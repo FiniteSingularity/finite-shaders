@@ -1,0 +1,80 @@
+#define GOLDEN_ANGLE 2.39996
+#define CGA -0.7373666964
+#define SGA 0.6754926758
+
+uniform float4x4 ViewProj<
+	bool automatic = true;
+	string name = "View Projection Matrix";
+>;
+uniform float4 ViewSize<
+	bool automatic = true;
+>;
+uniform texture2d InputA<
+	bool automatic = true;
+>;
+
+uniform float Radius<
+	string name = "Blur Raidus";
+	string field_type = "slider";
+	float minimum = 0.0;
+	float maximum = 10.0;
+	float step = 0.01;
+> = 1.0;
+
+uniform int Iterations<
+	string name = "Iterations";
+	string field_type = "slider";
+	float minimum = 10;
+	float maximum = 300;
+	float step = 1;
+> = 150;
+
+
+struct VertData {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+VertData VSDefault(VertData v_in) {
+	VertData vert_out;
+	vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
+	vert_out.uv  = v_in.uv;
+	return vert_out;
+}
+
+sampler_state maskSamplerA {
+	Filter		= Linear;
+	AddressU	= Clamp;
+	AddressV	= Clamp;
+};
+
+
+float4 PSDefault(VertData v_in) : TARGET {
+	float3 acc = float3(0.0, 0.0, 0.0);
+	float3 div = float3(0.0, 0.0, 0.0);
+	float r = 1.0;
+	float2 vangle = float2(0.0, Radius*0.01 / sqrt(float(Iterations)));
+	float2x2 rot = { CGA, SGA,
+	                -SGA, CGA};
+
+	for(int j = 0; j < Iterations; j++) {
+		r += 1.0 / r;
+		vangle = mul(rot, vangle);
+		float3 col = InputA.Sample(maskSamplerA, v_in.uv + (r-1.0) * vangle).xyz;
+		//col = col * col * 1.8;
+		float3 bokeh = pow(col, float3(4., 4., 4.));
+		acc += col * bokeh;
+		div += bokeh;
+	}
+	return float4(acc / div, 1.0);
+	//return InputA.Sample(maskSamplerA, v_in.uv*1.0);
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSDefault(v_in); 
+	}
+}

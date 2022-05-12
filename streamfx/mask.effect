@@ -1,0 +1,54 @@
+uniform float4x4 ViewProj<
+	bool automatic = true;
+	string name = "View Projection Matrix";
+>;
+uniform float4 ViewSize<
+	bool automatic = true;
+>;
+uniform texture2d InputA<
+	bool automatic = true;
+>;
+
+uniform texture2d Background<
+  string name = "Background";
+  //string field_type = "input";       // Standard input widget with manual entry and nothing fancy.
+>;
+
+struct VertData {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+VertData VSDefault(VertData v_in) {
+	VertData vert_out;
+	vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
+	vert_out.uv  = v_in.uv;
+	return vert_out;
+}
+
+sampler_state maskSamplerA {
+	Filter		= Linear;
+	AddressU	= Clamp;
+	AddressV	= Clamp;
+};
+
+sampler_state maskSamplerB {
+	Filter		= Linear;
+	AddressU	= Clamp;
+	AddressV	= Clamp;
+};
+
+float4 PSDefault(VertData v_in) : TARGET {
+  float4 pixel = InputA.Sample(maskSamplerA, v_in.uv);
+  float4 bgPixel = Background.Sample(maskSamplerB, v_in.uv);
+	return float4(pixel.rgb + bgPixel.rgb * (1.0 - pixel.a), 1.0);
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSDefault(v_in); 
+	}
+}

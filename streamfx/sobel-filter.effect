@@ -1,0 +1,73 @@
+uniform float4x4 ViewProj<
+	bool automatic = true;
+	string name = "View Projection Matrix";
+>;
+uniform float4 ViewSize<
+	bool automatic = true;
+>;
+uniform texture2d InputA<
+	bool automatic = true;
+>;
+
+uniform float StepSize<
+	string name = "Step Size";
+	string field_type = "slider";
+	float minimum = 0.0;
+	float maximum = 10.0;
+	float step = 0.01;
+> = 1.0;
+
+
+struct VertData {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+VertData VSDefault(VertData v_in) {
+	VertData vert_out;
+	vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
+	vert_out.uv  = v_in.uv;
+	return vert_out;
+}
+
+sampler_state maskSamplerA {
+	Filter		= Linear;
+	AddressU	= Clamp;
+	AddressV	= Clamp;
+};
+
+float intensity(float4 color) : float4 {
+	return sqrt(pow(color.x,2.) + pow(color.y,2.) + pow(color.z,2.));
+}
+
+float4 PSDefault(VertData v_in) : TARGET {
+	float2 step = StepSize / ViewSize.xy;
+
+	float a00 = intensity(InputA.Sample(maskSamplerA, v_in.uv + float2(-step.x,step.y)));
+	float a10 = intensity(InputA.Sample(maskSamplerA, v_in.uv + float2(-step.x,0)));
+	float a20 = intensity(InputA.Sample(maskSamplerA, v_in.uv + float2(-step.x,-step.y)));
+	float a01 = intensity(InputA.Sample(maskSamplerA, v_in.uv + float2(0,step.y)));
+	float a21 = intensity(InputA.Sample(maskSamplerA, v_in.uv + float2(0,-step.y)));
+	float a02 = intensity(InputA.Sample(maskSamplerA, v_in.uv + float2(step.x,step.y)));
+	float a12 = intensity(InputA.Sample(maskSamplerA, v_in.uv + float2(step.x,0)));
+	float a22 = intensity(InputA.Sample(maskSamplerA, v_in.uv + float2(step.x,-step.y)));
+
+	float x = a00 + 2.0 * a10 + a20 - a02 - 2.0 * a12 - a22;
+	float y = -a00 - 2.0 * a01 - a02 + a20 + 2.0 * a21 + a22;
+  // float x = 3.0 * a00 + 10.0 * a10 + 3.0 * a20 -3.0 * a02 - 10.0 * a12 - 3.0 * a22;
+	// float y = -3.0 * a00 - 10.0 * a01 - 3.0 * a02 + 3.0 * a20 + 10.0 * a21 + 3.0 * a22;
+  float color = sqrt(pow(x,2.) + pow(y,2.));
+
+	float4 pixel = InputA.Sample(maskSamplerA, v_in.uv);
+
+	return float4(color, color, color, pixel.a);
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSDefault(v_in); 
+	}
+}
