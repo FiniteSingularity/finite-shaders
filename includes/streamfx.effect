@@ -5,7 +5,8 @@ uniform float4x4 ViewProj<
 uniform float4 ViewSize<
 	bool automatic = true;
 >;
-uniform texture2d InputA<Z
+
+uniform texture2d InputA<
 	bool automatic = true;
 >;
 
