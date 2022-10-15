@@ -1,0 +1,124 @@
+#include "../includes/streamfx.effect"
+
+/*
+ *   Converted from Del's House Quake ShaderToy: https://www.shadertoy.com/view/XdcBzs
+ */
+
+uniform float4 Time<
+	bool automatic = true;
+>;
+
+uniform float Intensity<
+  string name = "Intensity (%)";
+  string field_type = "slider";
+  float minimum = 0.0;
+	float maximum = 100.0;
+	float step = 0.1;
+  float scale = 0.01;
+> = 50.0;
+
+float random (float2 st)
+{
+    return frac(sin(dot(st.xy, float2(12.9898,78.233)))* 43758.5453123);
+}
+
+float noise(float2 st)
+{
+    float2 i = floor(st);
+    float2 f = frac(st);
+    float a = random(i);
+    float b = random(i + float2(1.0, 0.0));
+    float c = random(i + float2(0.0, 1.0));
+    float d = random(i + float2(1.0, 1.0));
+    float2 u = f * f * (3.0 - 2.0 * f);
+    return lerp(a, b, u.x) + (c - a)* u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+}
+
+#define octaves 3
+float fbm(float2 p)
+{
+    float value = 0.0;
+    float freq = 1.13;
+    float amp = 0.57;    
+    for (int i = 0; i < octaves; i++)
+    {
+        value += amp * (noise((p - float2(1.0, 1.0)) * freq));
+        freq *= 1.61;
+        amp *= 0.47;
+    }
+    return value;
+}
+
+
+float pat(float2 p)
+{
+    float time = Time.y*0.75;
+    float2 aPos = float2(sin(time * 0.035), sin(time * 0.05)) * 3.;
+    float2 aScale = float2(3.25, 3.25);
+    float a = fbm(p * aScale + aPos);
+    float2 bPos = float2(sin(time * 0.09), sin(time * 0.11)) * 1.2;
+    float2 bScale = float2(0.75, 0.75);
+    float b = fbm((p + a) * bScale + bPos);
+    float2 cPos = float2(-0.6, -0.5) + float2(sin(-time * 0.01), sin(time * 0.1)) * 1.9;
+    float2 cScale = float2(1.25, 1.25);
+    float c = fbm((p + b) * cScale + cPos);
+    return c;
+}
+
+float2 Shake(float maxshake, float mag)
+{
+    float speed = 20.0*mag;
+    float shakescale = maxshake * mag;
+    
+    float time = Time.y*speed;			// speed of shake
+    
+    float2 p1 = float2(0.25,0.25);
+    float2 p2 = float2(0.75,0.75);
+    p1 += time;
+    p2 += time;
+    
+    // random shake is just too violent...
+    //float val1 = random(p1);
+    //float val2 = random(p2);
+    
+    float val1 = pat(p1);
+    float val2 = pat(p2);
+    val1 = clamp(val1,0.0,1.0);
+    val2 = clamp(val2,0.0,1.0);
+    
+    return float2(val1*shakescale,val2*shakescale);
+}
+
+
+sampler_state inputSampler {
+	Filter		= Linear;
+	AddressU	= Clamp;
+	AddressV	= Clamp;
+};
+
+float4 PSDefault(VertData v_in) : TARGET {
+  // float2 coord = v_in.uv * ViewSize.xy * 0.05;
+  // float val = pat(coord);
+  // return float4(val, 0.0, 1.0, 1.0);
+
+  float maxshake = 0.2;				// max shake amount
+  float mag = Intensity;		    // shake magnitude...
+
+  // *temp* , We will calc shakexy once in the vertex shader...
+  float2 shakexy = Shake(maxshake,mag);
+    
+	float2 uv = v_in.uv;
+
+  uv *= 1.0-(maxshake*mag);
+  float4 col = InputA.Sample(inputSampler, uv + shakexy);
+  return col;
+}
+
+technique Draw
+{
+  pass
+  {
+    vertex_shader = VSDefault(v_in);
+    pixel_shader  = PSDefault(v_in); 
+  }
+}
