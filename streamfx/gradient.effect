@@ -1,0 +1,57 @@
+#include "../includes/streamfx.effect"
+#include "../includes/constants.effect"
+
+uniform float GradientAngle<
+	string name = "Gradient Angle";
+	string field_type = "slider";
+	float minimum = 0.0;
+	float maximum = 360.0;
+	float step = 0.01;
+	float scale = DEG2RAD;
+> = 0.0;
+
+uniform float3 StartColor<
+	string name = "Gradient Start color (R[0], G[1], B[2])";
+	string field_type = "slider";
+	float3 minimum = {0., 0., 0.};
+	float3 maximum = {255., 255., 255.};
+	float3 step = {0.01, 0.01, 0.01};
+	float3 scale = {0.0039216, 0.0039216, 0.0039216};
+> = {0., 0., 0.};
+
+uniform float3 EndColor<
+	string name = "Gradient End color (R[0], G[1], B[2])";
+	string field_type = "slider";
+	float3 minimum = {0., 0., 0.};
+	float3 maximum = {255., 255., 255.};
+	float3 step = {0.01, 0.01, 0.01};
+	float3 scale = {0.0039216, 0.0039216, 0.0039216};
+> = {255., 255., 255.};
+
+sampler_state ClampSampler {
+	AddressU  = Clamp;
+	AddressV  = Clamp;
+	Filter    = Anisotropy;
+};
+
+float4 PSDefault(VertData v_in) : TARGET {
+  float2 frame_coord = v_in.uv * ViewSize.xy;
+  float2 half_dims = ViewSize.xy/2.0;
+
+  float2 grad_coord_shift = frame_coord - half_dims;
+  float grad_x = grad_coord_shift[0] * cos(GradientAngle) - grad_coord_shift[1] * sin(GradientAngle);
+
+  float color_u = (grad_x + half_dims[0])/ViewSize.xy[0];
+  float3 color = lerp(StartColor, EndColor, float3(color_u, color_u, color_u));
+
+	return float4(color[0], color[1], color[2], 1.0);
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSDefault(v_in); 
+	}
+}

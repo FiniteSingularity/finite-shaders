@@ -1,0 +1,104 @@
+#include "../includes/streamfx.effect"
+#include "../includes/constants.effect"
+#include "../includes/noise.effect"
+
+uniform float4 Time<
+	bool automatic = true;
+>;
+
+uniform float AnimationSpeed<
+  string name = "Animation Speed (x)";
+  string field_type = "slider";
+  float minimum = 0.0;
+	float maximum = 10.0;
+	float step = 0.1;
+> = 1.0;
+
+uniform texture2d MaskSource<
+  string name = "Mask Source";
+  //string field_type = "input";       // Standard input widget with manual entry and nothing fancy.
+>;
+
+uniform float Offset<
+	string name = "Offset (px)";
+	string field_type = "slider";
+	float minimum = 0.0;
+	float maximum = 1000.0;
+	float step = 1.0;
+> = 25.0;
+
+uniform float StrokeThickness<
+	string name = "Stroke Thickness (px)";
+	string field_type = "slider";
+	float minimum = 1.0;
+	float maximum = 1000.0;
+	float step = 1.0;
+> = 5.0;
+
+uniform float NoiseScale<
+	string name = "Noise Scale";
+	string field_type = "slider";
+	float minimum = 1.0;
+	float maximum = 1000.0;
+	float step = 1.0;
+> = 100.0;
+
+uniform float NoiseMultiplier<
+  string name = "Distortion Size (px)";
+	string field_type = "slider";
+	float minimum = 1.0;
+	float maximum = 1000.0;
+	float step = 1.0;
+> = 20.0;
+
+sampler_state maskSamplerB {
+	Filter		= Linear;
+	AddressU	= Clamp;
+	AddressV	= Clamp;
+};
+
+float4 PSDefault(VertData v_in) : TARGET {
+  float maxDist = Offset + StrokeThickness + NoiseMultiplier;
+
+  float steps = 32.0 + maxDist/2.0;
+  float stepSize = TAU / steps;
+  float2 coord = v_in.uv * ViewSize.xy;
+  
+  float t = Time.x * AnimationSpeed;
+  float radius_multiplier = 2.0 * (0.5 + 0.5 * Pseudo3dNoise(float3(coord.x/NoiseScale, coord.y/NoiseScale, t))) - 1.0;
+  //steps = 32.0;
+
+  float intensity_out = 0.0;
+  float intensity_in = 0.0;
+
+  float offset_in = (Offset + radius_multiplier * NoiseMultiplier)/ViewSize.xy;
+  float offset_out = (Offset + StrokeThickness + radius_multiplier * NoiseMultiplier)/ViewSize.xy;
+  
+  for (float i = 0.0; i<steps; i++) {
+    float theta = i * stepSize;
+    float2 dir = float2(sin(theta), cos(theta));
+    float2 sample_pt_in = v_in.uv + dir * offset_in;
+    float2 sample_pt_out = v_in.uv + dir * offset_out;
+    float4 color_in = MaskSource.Sample(maskSamplerB, sample_pt_in);
+    intensity_in += color_in[3];
+    float4 color_out = MaskSource.Sample(maskSamplerB, sample_pt_out);
+    intensity_out += color_out[3];
+  }
+
+  intensity_in = clamp(intensity_in, 0.0, 1.0);
+  intensity_out = clamp(intensity_out, 0.0, 1.0);
+  float intensity = clamp(intensity_out-intensity_in, 0.0, 1.0);
+
+
+  //float4 maskPixel = MaskSource.Sample(maskSamplerB, coord / ViewSize.xy);
+  return float4(1.0, 1.0, 1.0, intensity);
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSDefault(v_in); 
+	}
+}

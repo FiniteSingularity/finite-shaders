@@ -1,0 +1,141 @@
+#include "../includes/streamfx.effect"
+#include "../includes/constants.effect"
+#include "../includes/transition-fns.effect"
+#include "../includes/hex-fns.effect"
+#include "../includes/noise.effect"
+
+
+
+uniform float4 Time<
+	bool automatic = true;
+>;
+
+/**********************************
+ * Modifyable Hexagon Parameters: *
+ **********************************/
+// HexagonScale- Scale/Size of the hexagon relative
+//               to frame width.
+uniform float HexagonScale<
+	string name = "Hexagon Scale";
+	string field_type = "slider";
+	float minimum = 1.0;
+	float maximum = 1000.0;
+	float step = 1.0;
+> = 40.0;
+
+// HexagonOrientation- Orientation of the hexagon grid.
+//                     Pointy- Hexagons with pointy side up.
+//                     Flat- Hexagons with flat side up.
+#define POINTY  0
+#define FLAT    1
+uniform int HexagonOrientation<
+	string name = "Hexagon Orientation";
+	string field_type = "enum";
+	int enum_0 = POINTY;
+	string enum_0_name = "Pointy";
+	int enum_1 = FLAT;
+	string enum_1_name = "Flat";
+> = 0;
+
+// RevealDistance- How far into the frame hexagons shoudl be
+//                 drawn. Scale of 0 to 100.
+uniform float RevealDistance<
+	string name = "Reveal Distance";
+	string field_type = "slider";
+	float minimum = 0.0;
+	float maximum = 100.1;
+	float step = 0.1;
+	float scale = 0.01;
+> = 0.0;
+// Transparent- If true, all non-hexagon-affected pixels will
+//              be transparent, allowing for layering effects.
+uniform bool ITransparent<
+	string name = "Make non hexagon pixels transparent";
+> = false;
+
+uniform float NoiseScale<
+	string name = "Noise Scale";
+	string field_type = "slider";
+	float minimum = 0.01;
+	float maximum = 1000.0;
+	float step = 0.1;
+> = 200.0;
+
+
+uniform float3 BorderColor<
+	string name = "Border Color";
+	string field_type = "slider";
+	float3 minimum = {0.0, 0.0, 0.0};
+	float3 maximum = {255.1, 255.1, 255.1};
+	float3 step = {0.1, 0.1, 0.1};
+  float3 scale = {0.00392, 0.00392, 0.00392};
+> = {255.0, 255.0, 255.0};
+
+uniform float BorderThickness<
+	string name = "Border Thickness (px)";
+	string field_type = "slider";
+	float minimum = 0.0;
+	float maximum = 64.0;
+	float step = 0.1;
+> = 3.0;
+
+uniform bool Animate<
+  string name = "Animate through time";
+> = false;
+
+uniform float AnimationSpeed<
+  string name = "Animation Speed (x)";
+  string field_type = "slider";
+  float minimum = 0.0;
+	float maximum = 10.0;
+	float step = 0.1;
+> = 1.0;
+
+sampler_state ClampSampler {
+	AddressU  = Clamp;
+	AddressV  = Clamp;
+	Filter    = Anisotropy;
+};
+
+float4 PSSimplex(VertData v_in) : TARGET {
+  float2 frame_coord = v_in.uv * ViewSize.xy;
+  int orientation = HexagonOrientation;
+  float s = ViewSize.x/HexagonScale;
+
+  // Fuzzy edges
+  // float intensity = 0.5 + 0.5 * Pseudo3dNoise(float3(frame_coord.x/NoiseScale, frame_coord.y/NoiseScale, 1.0)) - 1.0 + 2.0 * RevealDistance;
+  // intensity = max(min(intensity, 1.0), 0.0);
+
+	float2 local_coord = frame_coord;
+	if(orientation == FLAT) {
+		local_coord = reverseCoords(frame_coord);
+	}
+
+	float2 local_nearest = coordToHexCenter(local_coord, s);
+	float2 frame_nearest = local_nearest;
+	if(orientation == FLAT) {
+		frame_nearest = reverseCoords(local_nearest);
+	}
+  float t = Animate ? Time.x * AnimationSpeed : 1.0;
+  float intensity = 0.5 + 0.5 * Pseudo3dNoise(float3(frame_nearest.x/NoiseScale, frame_nearest.y/NoiseScale, t)) - 1.0 + 2.0 * RevealDistance;
+  intensity = max(min(intensity, 1.0), 0.0);
+  float4 pixel = InputA.Sample(ClampSampler, frame_nearest / ViewSize.xy);
+	float transition_ratio = intensity;
+	float transition_hex_size = transition_ratio * s;
+	float dist = hexDist(local_coord, local_nearest);
+	if(transition_hex_size < dist) {
+		return float4(0.0, 0.0, 0.0, 0.0);
+  } else if(intensity < 1.0 && transition_hex_size < (dist + BorderThickness)) {
+    return float4(BorderColor.x, BorderColor.y, BorderColor.z, 1.0);
+  }
+	return float4((intensity) * pixel.rgb + (1.0-intensity) * BorderColor, 1.0);
+}
+
+technique Draw
+{
+  pass
+  {
+    vertex_shader = VSDefault(v_in);
+    pixel_shader  = PSSimplex(v_in); 
+  }
+}
