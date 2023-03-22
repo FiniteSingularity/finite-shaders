@@ -1,0 +1,68 @@
+#include "../includes/streamfx.effect"
+#include "../includes/constants.effect"
+#include "../includes/blue-noise.effect"
+
+uniform float DitherSize<
+  string name = "Dither Pixel Size";
+  string field_type = "slider";
+  float minimum = 0.4;
+  float maximum = 10.1;
+  float step = 0.1;
+> = 1.0;
+
+uniform float Gamma<
+  string name = "Gamma";
+  string field_type = "slider";
+  float minimum = 0.25;
+  float maximum = 2.0;
+  float step = 0.05;
+> = 1.0;
+
+uniform float Contrast<
+  string name = "Contrast Adjustment";
+  string field_type = "slider";
+  float minimum = -1.0;
+  float maximum = 1.0;
+  float step = 0.1;
+  float scale = 255.0;
+> = 0.0;
+
+sampler_state ClampSampler {
+  AddressU = Clamp;
+  AddressV = Clamp;
+  Filter =  Linear;
+};
+
+float RGBToLum(float3 color) {
+  return 0.299 * color.r + 0.587 * color.g + 0.114 * color.b;
+}
+
+float4 PSDefault(VertData v_in) : TARGET {
+  float2 coord = v_in.uv * ViewSize.xy;
+
+  // Calcuate color correction factors
+  float gammaCorrection = 1.0/Gamma;
+  float contrastFactor = (259.0 * (Contrast + 255.0)) / (255.0 * (259.0 - Contrast));
+
+  // Correct color  
+  float4 color = InputA.Sample(ClampSampler, v_in.uv);
+  color.rgb = pow(color.rgb, gammaCorrection);
+  color.rgb = saturate(contrastFactor * (color.rgb - 0.5) + 0.5);
+  
+  float noise = RGBToLum(BlueNoise(coord/DitherSize));
+  float lum = RGBToLum(color.rgb);
+
+  // Dither the image using noise field for threshold and pixel luminance values
+  float3 dithered = lum > noise ? float3(1.0, 1.0, 1.0) : float3(0.0, 0.0, 0.0);
+
+  return float4(dithered.r, dithered.g, dithered.b, color.a);
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSDefault(v_in); 
+	}
+}

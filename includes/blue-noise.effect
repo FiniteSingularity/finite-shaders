@@ -1,0 +1,51 @@
+// Hilbert R1 Noise from https://www.shadertoy.com/view/cl2GRm
+
+#define HILBERT_LEVEL 0x7        // bigger = slower but less tiling
+#define HILBERT_WIDTH 0x80       // 0x1 << HILBERT_LEVEL
+
+// based on [roberts]
+float quasirand_r1(int n) {
+    const float INV_PHI = 0.61803398874989484820;
+    return frac(0.5 + INV_PHI*float(n));
+}
+
+// original from https://www.shadertoy.com/view/XtGBDW
+int HilbertIndex(int2 Position) {
+    int Index = 0x0;
+    for( int CurLevel = HILBERT_WIDTH/2; CurLevel > 0; CurLevel /= 2 ) {
+      int2 pcl = int2(Position.x & CurLevel, Position.y & CurLevel);
+      int2 Region = int2(pcl.x > 0 ? 1 : 0, pcl.y > 0 ? 1 : 0);
+      // //int2 Region = int2(greaterThan((Position & int2(CurLevel, CurLevel)), int2(0U, 0U)));
+      Index += CurLevel * CurLevel * ( (3 * Region.x) ^ Region.y);
+      if( Region.y == 0 ) {
+        if( Region.x == 1 )
+          Position = int2(HILBERT_WIDTH - 1, HILBERT_WIDTH - 1) - Position;
+        Position.xy = Position.yx;
+      }
+    }
+    return Index;
+}
+
+// original from https://www.shadertoy.com/view/3tB3z3
+float HilbertR1Noise(float2 p) {
+  return quasirand_r1(HilbertIndex(int2(p)) % 131072);
+}
+
+float3 HilbertR1Noise_rgb(float2 p) {
+    float h1 = HilbertR1Noise(p);
+    float h2 = HilbertR1Noise(p + float2(1234., 0.));
+    float h3 = HilbertR1Noise(p + float2(0., 1234.));
+    return float3(h1,h2,h3);
+}
+
+// [roberts] recommends remapping their proposed R2Noise dither mask
+// through this formula to eliminate the discontinuities from fract().
+// Looks like it improves dithering for other noises too.
+float3 TriWave(float3 z) { // z in [0..1]
+    return lerp(2.0*z, 2.0 - 2.0*z, step(0.5, z));
+}
+
+float3 BlueNoise(float2 p) {
+  float3 noise = HilbertR1Noise_rgb(p);
+  return TriWave(noise);
+}

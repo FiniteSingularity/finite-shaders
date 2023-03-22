@@ -1,0 +1,58 @@
+#include "../includes/streamfx.effect"
+#include "../includes/constants.effect"
+
+// #define POINTY 0
+// #define FLAT   1
+// uniform int HexagonOrientation<
+//   string name = "Hexagon Orientation";
+//   string field_type = "enum";
+//   int enum_0 = POINTY;
+//   string enum_0_name = "Pointy";
+//   int enum_1 = FLAT;
+//   string enum_1_name = "Flat";
+// > = 0;
+
+uniform float Stroke<
+  string name = "Stroke";
+  string field_type = "slider";
+  float minimum = 1.;
+  float maximum = 50.;
+  float step = 0.5;
+> = 3.;
+
+sampler_state ClampSampler {
+  AddressU = Clamp;
+  AddressV = Clamp;
+  Filter =  Anisotropy;
+};
+
+float4 PSDefault(VertData v_in) : TARGET {
+  float2 pos = v_in.uv * ViewSize.xy;
+  float4 cur_pixel = InputA.Sample(ClampSampler, v_in.uv);
+
+  if(cur_pixel.a > EPS) {
+    return float4(0.0, 0.0, 0.0, 0.0);
+  }
+
+
+  //float shift = HexagonOrientation == POINTY ? 0.0 : RAD30;
+  float stepSize = RAD60;
+
+  float a = 0.0;
+  for (float i = 0.0; i<6.0; i++) {
+    float theta = i * stepSize;
+    float2 dir = float2(sin(theta), cos(theta));
+    a += InputA.Sample(ClampSampler, (pos + dir * Stroke)/ViewSize.xy).a;
+  }
+  a = min(a, 1.0);
+  return float4(1.0, 1.0, 1.0, a);
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSDefault(v_in); 
+	}
+}

@@ -1,0 +1,102 @@
+#include "../includes/streamfx.effect"
+#include "../includes/constants.effect"
+
+uniform texture2d FontTexture<
+  string name = "Font Texture";
+  //string field_type = "input";       // Standard input widget with manual entry and nothing fancy.
+>;
+
+uniform int2 FontTextureDims<
+  string name = "Font Texture Dimensions (width, height)";
+  string field_type = "slider";
+  int2 minimum = {1, 1};
+  int2 maximum = {2000, 500};
+  int2 step = {1, 1};
+> = {120, 10};
+
+uniform int FontTextureNumChars<
+  string name = "Number of characters";
+  string field_type = "slider";
+  int minimum = 2;
+  int maximum = 256;
+  int step = 1;
+> = 12;
+
+uniform float4 TextColor<
+  string name = "Text Color";
+  string field_type = "slider";
+  float4 minimum = {0.0, 0.0, 0.0, 0.0};
+  float4 maximum = {255.0, 255.0, 255.0, 1.0};
+  float4 step = {0.1, 0.1, 0.1, 0.01};
+  float4 scale = {0.0039216, 0.0039216, 0.0039216, 1.0};
+> = {0.0, 255., 0.0, 1.0};
+
+uniform float4 BackgroundColor<
+  string name = "Background Color";
+  string field_type = "slider";
+  float4 minimum = {0.0, 0.0, 0.0, 0.0};
+  float4 maximum = {255.0, 255.0, 255.0, 1.0};
+  float4 step = {0.1, 0.1, 0.1, 0.01};
+  float4 scale = {0.0039216, 0.0039216, 0.0039216, 1.0};
+> = {0., 50., 0., 1.};
+
+uniform bool Colorize<
+  string name = "Use Video Colors?";
+> = true;
+
+uniform float Scale<
+  string name = "Scale";
+  string field_type = "slider";
+  float minimum = 0.1;
+  float maximum = 20.0;
+  float step = 0.1;
+> = 1.0;
+
+sampler_state inputSampler {
+	AddressU  = Clamp;
+	AddressV  = Clamp;
+	Filter    = Anisotropy;
+};
+
+sampler_state fontSampler {
+	AddressU  = Clamp;
+	AddressV  = Clamp;
+	Filter    = Anisotropy;
+};
+
+float gray(float3 col) {
+  // Standard RGB to luminance calculation
+  return col.r*0.299 + col.g*0.587 + col.b*0.114;
+}
+
+float4 PSDefault(VertData v_in) : TARGET {
+  float charHeight = float(FontTextureDims.y);
+  float charWidth = float(FontTextureDims.x)/float(FontTextureNumChars);
+
+  float2 coord = v_in.uv * ViewSize.xy;
+  float2 uv = float2(floor(coord.x/charWidth/Scale)*charWidth*Scale, floor(coord.y/charHeight/Scale)*charHeight*Scale)/ViewSize.xy;
+  float2 subPos = float2(frac(coord.x/Scale/charWidth), frac(coord.y/Scale/charHeight));
+
+
+  float4 col = InputA.Sample(inputSampler, uv);
+
+  float g = gray(col.rgb);
+  float charUv = floor(g*float(FontTextureNumChars))/float(FontTextureNumChars);
+
+  float2 sampleUv = float2(charUv, 0.0) + float2(1.0/float(FontTextureNumChars), 1.0) * subPos;
+
+  float4 cha = FontTexture.Sample(fontSampler, sampleUv);
+  cha = float4(1.0-cha.r, 1.0-cha.g, 1.0-cha.b, 1.0-gray(cha.rgb));
+
+  float4 pixel = Colorize ? float4(col.rgb/max(col.r, max(col.g, col.b)), col.a) : TextColor;
+  return cha * pixel + (1.0 - cha) * BackgroundColor;
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSDefault(v_in); 
+	}
+}

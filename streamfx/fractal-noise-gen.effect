@@ -1,0 +1,170 @@
+#include "../includes/streamfx.effect"
+#include "../includes/constants.effect"
+#include "../includes/noise/fractal-noise.effect"
+
+uniform float4 Time<
+	bool automatic = true;
+>;
+
+uniform float EvolutionRate<
+  string name = "Evolution Rate";
+  string field_type = "slider";
+  float minimum = 0.1;
+  float maximum = 500.0;
+  float step = 0.1;
+> = 50.0;
+
+uniform float Contrast<
+  string name = "Contrast";
+  string field_type = "slider";
+  float minimum = 0.0;
+  float maximum = 2.0;
+  float step = 0.01;
+> = 1.;
+
+uniform float Radius<
+  string name = "Circle Radius";
+  string field_type = "slider";
+  float minimum = 0.0;
+  float maximum = 4000.0;
+  float step = 1.0;
+> = 100.0;
+
+uniform float Brightness<
+  string name = "Brightness";
+  string field_type = "slider";
+  float minimum = -1.0;
+  float maximum = 1.0;
+  float step = 0.01;
+> = 0.;
+
+uniform float2 Scale<
+	string name = "Noise Scale (x, y)";
+	string field_type = "slider";
+	float2 minimum = {1.0., 1.0};
+	float2 maximum = {255., 255.};
+	float2 step = {0.1, 0.1};
+> = {32.0, 32.0};
+
+uniform float Displace<
+  string name = "Displacement Size";
+  string field_type = "slider";
+  float minimum = 0.0;
+  float maximum = 1000.0;
+  float step = 0.1;
+> = 0.0;
+
+uniform bool ShouldInvert<
+  string name = "Should Invert";
+> = false;
+
+#define BASIC 0
+#define TURBULENT_SMOOTH   1
+#define TURBULENT_BASIC    2
+#define TURBULENT_SHARP    3
+#define DYNAMIC            4
+uniform int FractalType<
+  string name = "Fractal Type";
+  string field_type = "enum";
+  int enum_0 = BASIC;
+  string enum_0_name = "Basic";
+  int enum_1 = TURBULENT_SMOOTH;
+  string enum_1_name = "Turbulent Smooth";
+  int enum_2 = TURBULENT_BASIC;
+  string enum_2_name = "Turbulent Basic";
+  int enum_3 = TURBULENT_SHARP;
+  string enum_3_name = "Turbulent Sharp";
+  int enum_4 = DYNAMIC;
+  string enum_4_name = "Dynamic";
+> = 0;
+
+
+#define BLOCK 0
+#define LINEAR   1
+#define SOFT_LINEAR    2
+#define SPLINE    3
+uniform int NoiseType<
+  string name = "Noise Type";
+  string field_type = "enum";
+  int enum_0 = BLOCK;
+  string enum_0_name = "Block";
+  int enum_1 = LINEAR;
+  string enum_1_name = "Linear";
+  int enum_2 = SOFT_LINEAR;
+  string enum_2_name = "Soft Linear";
+  int enum_3 = SPLINE;
+  string enum_3_name = "Spline";
+> = 0;
+
+sampler_state ClampSampler {
+	AddressU  = Clamp;
+	AddressV  = Clamp;
+	Filter    = Anisotropy;
+};
+
+float4 PSDefault(VertData v_in) : TARGET {
+  // Settings:
+  float contrast = 1.;
+  float brightness = 0.;
+  /*
+  * 0: clip
+  * 1: soft clamp
+  * 2: wrap back
+  * 3: allow hdr results
+  */
+  int overflow = 3;
+
+  // transform
+  float rotation = 0.; // in Period
+  float2 scale = float2(Scale.x, Scale.y);
+  float2 offsetTurbulence = float2(0., 0.);
+
+  float complexity = 5.;
+
+  // sub settings
+  float subInfluence = 0.7;
+  float subScaling = 0.57;
+  float subRotation = 0.; // in Period
+  float2 subOffset = float2(0., 0.);
+  bool centerSubscale = false;
+
+  float evolution = Radius/EvolutionRate; // in Period
+  bool cycleRevolution = false;
+  int cycle = 1; // not used if cycleRevolution is false
+
+  int randomSeed = 0;
+
+  float radius = Radius;
+  float2 Center = float2(960.0, 540.0);
+
+
+  float2 coord = v_in.uv * ViewSize.xy;
+
+  float2 flipCoord = flip(coord);
+  float3x3 trans = inverseMatrix(offsetTurbulence, rotation * TAU, scale);
+  flipCoord = mul(trans, float3(flipCoord.x, flipCoord.y, 1.)).xy;
+
+  float xDisp = FractalNoise(flipCoord, NoiseType, FractalType, overflow, Contrast, Brightness, ShouldInvert, subInfluence, subOffset, subRotation, subScaling, complexity, randomSeed, cycleRevolution, cycle, evolution, centerSubscale);
+  float yDisp = FractalNoise(flipCoord+5000.0, NoiseType, FractalType, overflow, Contrast, Brightness, ShouldInvert, subInfluence, subOffset, subRotation, subScaling, complexity, randomSeed, cycleRevolution, cycle, evolution, centerSubscale);
+
+  float2 coordDisp = coord + Displace*(float2(xDisp, yDisp)) - Displace/2.0;
+
+  float2 di = Center-coordDisp;
+
+  float d = sqrt(pow(coordDisp.x-Center.x, 2.0) + pow(coordDisp.y-Center.y, 2.0));
+
+  float theta = atan2(di.y, di.x) + PI;
+
+  return d > radius ? float4(1.0, 1.0, 1.0, 1.0) : float4(0.0, 0.0, 0.0, 1.0);
+
+  //return vals;
+
+}
+
+technique Draw {
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSDefault(v_in); 
+	}
+}

@@ -1,0 +1,252 @@
+
+
+
+// Hash function
+#define HASHSCALE3 float3(.1031, .1030, .0973)
+float3 hash33(float3 p3) {
+	p3 = frac(p3 * HASHSCALE3);
+  p3 += dot(p3, p3.yxz+19.19);
+  return frac((p3.xxy + p3.yxx)*p3.zyx);
+}
+
+float2 flip(float2 coord) {
+    return float2(coord.x, ViewSize.y - coord.y);
+}
+
+float bicubic(float a, float b, float c, float d, float t) {
+    float p = - a / 2. + b * 3./2. - c * 3./2. + d / 2.;
+    float q = a - b * 5./2. + c * 2. - d / 2.;
+    float r = - a / 2. + c / 2.;
+    float s = b;
+    
+    return p * t*t*t + q * t*t + r * t + s;
+}
+
+float wrap(float value, float minValue, float maxValue) {
+  return fmod((value - minValue), (maxValue - minValue)) + minValue;
+}
+
+// Fractal Type
+
+float basic(float f) {
+    return f;
+}
+
+float turbulentBasic(float f) {
+    return abs(f - 0.5) * 2.;
+}
+
+float turbulentSmooth(float f) {
+    float x = turbulentBasic(f);
+    return x*x;
+}
+
+float turbulentSharp(float f) {
+    float x = turbulentBasic(f);
+    return sqrt(x);
+}
+
+float selectFractal(float f, int fractalType) {
+    float ret = 0.;
+    if (fractalType == 0) {
+        ret = basic(f);
+    } else if (fractalType == 1) {
+        ret = turbulentSmooth(f);
+    } else if (fractalType == 2) {
+        ret = turbulentBasic(f);
+    } else if (fractalType == 3) {
+        ret = turbulentSharp(f);
+    } else {
+        ret = basic(f);
+    }
+    return ret;
+}
+
+// Cycle
+float selectCycle(float value, float base, float period, bool cycleRevolution) {
+    float ret = 0.;
+    if (cycleRevolution) {
+        ret = wrap(value, base, base + period);
+    } else {
+        ret = value;
+    }
+    return ret;
+}
+
+
+// Noise Type
+
+float block(float2 coord, float depth, int seed, bool cycleRevolution, int cycle, float evolution, bool centerSubscale) {
+  float randf = float(seed);
+  if (centerSubscale) randf += depth;
+  float3 hash = hash33(float3(floor(coord), randf));
+  float freq = hash.x; // random freq for each coord
+  float period = 1. + floor(freq * float(cycle + 1));
+  if (cycleRevolution) {
+    freq = period / float(cycle);
+  }
+  float evo = evolution * freq + hash.y;
+  float e = randf + floor(evo); // evolution here
+  float f = frac(evo);
+  
+  float a = hash33(float3(floor(coord), selectCycle(e - 1., randf, period, cycleRevolution))).x;
+  float b = hash33(float3(floor(coord), selectCycle(e + 0., randf, period, cycleRevolution))).x;
+  float c = hash33(float3(floor(coord), selectCycle(e + 1., randf, period, cycleRevolution))).x;
+  float d = hash33(float3(floor(coord), selectCycle(e + 2., randf, period, cycleRevolution))).x;
+  
+  return bicubic(a, b, c, d, f);
+}
+
+float baseLinear(float2 coord, float depth, int seed, bool cycleRevolution, int cycle, float evolution, bool centerSubscale) {
+  coord -= 0.5;
+  float tl = block(coord, depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  float tr = block(coord + float2(1., 0.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  float bl = block(coord + float2(0., 1.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  float br = block(coord + float2(1., 1.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  
+  float2 f = frac(coord);
+  return lerp(lerp(tl, tr, f.x), lerp(bl, br, f.x), f.y);
+}
+
+float softLinear(float2 fragCoord, float depth, int seed, bool cycleRevolution, int cycle, float evolution, bool centerSubscale) {
+    fragCoord -= 0.5;
+    float tl = block(fragCoord, depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+    float tr = block(fragCoord + float2(1., 0.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+    float bl = block(fragCoord + float2(0., 1.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+    float br = block(fragCoord + float2(1., 1.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+    
+    float2 f = frac(fragCoord);
+    f = smoothstep(0., 1., f);
+    return lerp(lerp(tl, tr, f.x), lerp(bl, br, f.x), f.y);
+}
+
+float spline(float2 fragCoord, float depth, int seed, bool cycleRevolution, int cycle, float evolution, bool centerSubscale) {
+  fragCoord -= 0.5;
+  
+  float ttll = block(fragCoord + float2(-1., -1.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  float ttl = block(fragCoord + float2(0., -1.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  float ttr = block(fragCoord + float2(1., -1.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  float ttrr = block(fragCoord + float2(2., -1.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+                      
+  float tll = block(fragCoord + float2(-1, 0.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  float tl = block(fragCoord, depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  float tr = block(fragCoord + float2(1., 0.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  float trr = block(fragCoord + float2(2, 0.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  
+  float bll = block(fragCoord + float2(-1., 1.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  float bl = block(fragCoord + float2(0., 1.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  float br = block(fragCoord + float2(1., 1.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  float brr = block(fragCoord + float2(2., 1.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  
+  float bbll = block(fragCoord + float2(-1., 2.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  float bbl = block(fragCoord + float2(0., 2.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  float bbr = block(fragCoord + float2(1., 2.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+  float bbrr = block(fragCoord + float2(2., 2.), depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+                      
+  float2 f = frac(fragCoord);
+  
+  float tt = bicubic(ttll, ttl, ttr, ttrr, f.x);
+  float t = bicubic(tll, tl, tr, trr, f.x);
+  float b = bicubic(bll, bl, br, brr, f.x);
+  float bb = bicubic(bbll, bbl, bbr, bbrr, f.x);
+  
+  return bicubic(tt, t, b, bb, f.y);
+}
+
+float clipOverflow(float value) {
+    return clamp(value, 0., 1.);
+}
+
+float softClampOverflow(float value) {
+    return 1. / (1. + exp(2. - 4.*value));
+}
+
+float wrapBackOverflow(float value) {
+    return abs(value - 2.*floor(value*0.5 + 0.5));
+}
+
+float allowHdrResultsOverflow(float value) {
+    return value;
+}
+
+float selectOverflow(float value, int overflow) {
+    float ret = 0.;
+    if (overflow == 0) {
+        ret = clipOverflow(value);
+    } else if (overflow == 1) {
+        ret = softClampOverflow(value);
+    } else if (overflow == 2) {
+        ret = wrapBackOverflow(value);
+    } else if (overflow == 3) {
+        ret = allowHdrResultsOverflow(value);
+    } else {
+        ret = allowHdrResultsOverflow(value);
+    }
+    return ret;
+}
+
+
+float layer(float2 fragCoord, int noiseType, int fractalType, float depth, int seed, bool cycleRevolution, int cycle, float evolution, bool centerSubscale) {
+    float ret = 0.;
+    if (noiseType == 0) {
+        ret = block(fragCoord, depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+    } else if (noiseType == 1) {
+        ret = baseLinear(fragCoord, depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+    } else if (noiseType == 2) {
+        ret = softLinear(fragCoord, depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+    } else if (noiseType == 3) {
+        ret = spline(fragCoord, depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+    } else {
+        ret = spline(fragCoord, depth, seed, cycleRevolution, cycle, evolution, centerSubscale);
+    }
+    return selectFractal(ret, fractalType);
+}
+
+float3x3 inverseMatrix(float2 translate, float rotate, float2 scale) {
+  return transpose(float3x3(
+    cos(-rotate)/scale.x, -sin(-rotate)/scale.x, -translate.x,
+    sin(-rotate)/scale.y, cos(-rotate)/scale.y, -translate.y,
+    0., 0., 1.
+  ));
+}
+
+float4 FractalNoise( float2 fragCoord, int noiseType, int fractalType, int overflow, float contrast, float brightness, bool shouldInvert, float subInfluence, float2 subOffset, float subRotation, float subScaling, float complexity, int seed, bool cycleRevolution, int cycle, float evolution, bool centerSubscale) {
+  float3x3 m = inverseMatrix(subOffset, subRotation * TAU, float2(subScaling, subScaling));
+  
+  float val = 0.;
+  
+  float totalWeight = 0.;
+  float3x3 trans = float3x3(1., 0., 0., 0., 1., 0., 0., 0., 1.);
+  float weight = 1.;
+  for (float i=1.; i<complexity; i++) {
+      float2 newCoord = mul(trans, float3(fragCoord.x, fragCoord.y, 1.)).xy;
+      val  += layer(newCoord, noiseType, fractalType, i, seed, cycleRevolution, cycle, evolution, centerSubscale) * weight;
+      
+      totalWeight += weight;
+      
+      trans = mul(m, trans);
+      weight *= subInfluence;
+  }
+  
+  float f = frac(complexity);
+  if (f == 0.) f = 1.;
+  
+  float2 newCoord = mul(trans, float3(fragCoord.x, fragCoord.y, 1.)).xy;
+  val  += layer(newCoord, noiseType, fractalType, floor(complexity)+1., seed, cycleRevolution, cycle, evolution, centerSubscale) * weight * f;
+
+  totalWeight += weight * f;
+  
+  val /= totalWeight;
+
+  // color
+  
+  if (shouldInvert) {
+      val = 1. - val;
+  }
+  val = (val - 0.5) * contrast + 0.5;
+  val += brightness;
+  
+  val = selectOverflow(val, overflow);
+  
+  return val;
+}

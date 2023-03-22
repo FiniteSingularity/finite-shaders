@@ -1,0 +1,105 @@
+#include "../includes/streamfx.effect"
+#include "../includes/constants.effect"
+#include "../includes/transition-fns.effect"
+#include "../includes/hex-fns.effect"
+#include "../includes/noise.effect"
+
+uniform float4 Time<
+  bool automatic = true;
+>;
+
+uniform float HexagonScale<
+  string name = "Hexagon Scale";
+  string field_type = "slider";
+  float minimum = 1.0;
+  float maximum = 1000.0;
+  float step = 1.0;
+> = 40.0;
+
+
+#define POINTY 0
+#define FLAT   1
+uniform int HexagonOrientation<
+  string name = "Hexagon Orientation";
+  string field_type = "enum";
+  int enum_0 = POINTY;
+  string enum_0_name = "Pointy";
+  int enum_1 = FLAT;
+  string enum_1_name = "Flat";
+> = 0;
+
+sampler_state ClampSampler {
+  AddressU = Clamp;
+  AddressV = Clamp;
+  Filter =  Anisotropy;
+};
+
+float4 PSDefault(VertData v_in) : TARGET {
+  float epsilon = EPS;
+  float2 frame_coord = v_in.uv * ViewSize.xy;
+  float4 cur_pixel = InputA.Sample(ClampSampler, v_in.uv);
+  if(cur_pixel.a < EPS) {
+    return cur_pixel;
+  }
+
+  float s = ViewSize.x/HexagonScale;
+  float d_p = s / COS30;
+
+  int orientation = HexagonOrientation;
+
+  float2 local_coord = frame_coord;
+  if(orientation == FLAT) {
+    local_coord = reverseCoords(frame_coord);
+  }
+
+  float2 local_nearest = coordToHexCenter(local_coord, s);
+  float2 frame_nearest = local_nearest;
+  if(orientation == FLAT) {
+    frame_nearest = reverseCoords(local_nearest);
+  }
+
+  float noise_val = simplexFractalNoise(float3(frame_nearest.x/5.0, frame_nearest.y/5.0, Time.x/30.0)) + 0.5;
+
+  float d_p_scale = 0.0;
+  if(noise_val > 0.25) {
+    d_p_scale = (noise_val - 0.25)/0.17;
+  }
+  if(noise_val > 0.42) {
+    d_p_scale = 1.0;
+  }
+
+  float hex_size = d_p_scale * s;
+
+  float dist = hexDist(local_coord, local_nearest);
+
+  // Check up
+  int up_dist = 3;
+  float sample_dir = InputA.Sample(ClampSampler, (frame_nearest + float2(0.0, -s))/ViewSize.xy).a;
+  sample_dir *= InputA.Sample(ClampSampler, (frame_nearest + float2(-s, 0.0))/ViewSize.xy).a;
+  sample_dir *= InputA.Sample(ClampSampler, (frame_nearest + float2(0.0, s))/ViewSize.xy).a;
+  sample_dir *= InputA.Sample(ClampSampler, (frame_nearest + float2(s, 0.0))/ViewSize.xy).a;
+
+  float sample_two_dir = InputA.Sample(ClampSampler, (frame_nearest + float2(0.0, -2.0*s))/ViewSize.xy).a;
+  sample_two_dir *= InputA.Sample(ClampSampler, (frame_nearest + float2(-2.0*s, 0.0))/ViewSize.xy).a;
+  sample_two_dir *= InputA.Sample(ClampSampler, (frame_nearest + float2(0.0, 2.0*s))/ViewSize.xy).a;
+  sample_two_dir *= InputA.Sample(ClampSampler, (frame_nearest + float2(2.0*s, 0.0))/ViewSize.xy).a;
+
+  if(sample_two_dir > EPS) {
+    return cur_pixel;
+  }
+
+  if(dist > hex_size || sample_dir < EPS) {
+    return float4(0.0, 0.0, 0.0, 0.0);
+  }
+
+  return cur_pixel;
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSDefault(v_in); 
+	}
+}

@@ -71,9 +71,12 @@ float4 PSDefault(VertData v_in) : TARGET {
   float intensity_out = 0.0;
   float intensity_in = 0.0;
 
-  float offset_in = (Offset + radius_multiplier * NoiseMultiplier)/ViewSize.xy;
-  float offset_out = (Offset + StrokeThickness + radius_multiplier * NoiseMultiplier)/ViewSize.xy;
+  //float offset_in = (Offset + radius_multiplier * NoiseMultiplier)/ViewSize.xy;
+  //float offset_out = (Offset + StrokeThickness + radius_multiplier * NoiseMultiplier)/ViewSize.xy;
   
+  float offset_in = Offset/ViewSize.xy;
+  float offset_out = (Offset + StrokeThickness)/ViewSize.xy;
+
   for (float i = 0.0; i<steps; i++) {
     float theta = i * stepSize;
     float2 dir = float2(sin(theta), cos(theta));

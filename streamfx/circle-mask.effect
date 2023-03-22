@@ -1,0 +1,46 @@
+#include "../includes/streamfx.effect"
+#include "../includes/constants.effect"
+#include "../includes/noise.effect"
+
+uniform float Radius<
+  string name = "Circle Radius";
+  string field_type = "slider";
+  float minimum = 0.0;
+  float maximum = 4000.0;
+  float step = 1.0;
+> = 40.0;
+
+uniform float2 Center<
+	string field_type = "slider";
+	float2 minimum = {-4000.0, -4000.0};
+	float2 maximum = {4000.0, 4000.0};
+	float2 step = {1.0, 1.0};
+> = { 960.0, 540.0 };
+
+sampler_state ClampSampler {
+	AddressU  = Clamp;
+	AddressV  = Clamp;
+	Filter    = Anisotropy;
+};
+
+float4 PSDefault(VertData v_in) : TARGET {
+  float2 coord = v_in.uv * ViewSize.xy;
+  float2 di = Center-coord;
+  float d = sqrt(pow(coord.x-Center.x, 2.0) + pow(coord.y-Center.y, 2.0));
+  float theta = atan2(di.y, di.x) + PI;
+  float r = Radius * (1.0 + 0.50 * (1.0 + simplex3d(float3(2.0*theta, Radius/200.0, 1.0))));
+
+  float4 val = d > r ? InputA.Sample(ClampSampler, v_in.uv) : float4(0.0, 0.0, 0.0, 0.0);
+
+
+  return val;
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSDefault(v_in); 
+	}
+}
