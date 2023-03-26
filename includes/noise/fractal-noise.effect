@@ -1,5 +1,18 @@
+#define FT_BASIC              0
+#define FT_TURBULENT_SMOOTH   1
+#define FT_TURBULENT_BASIC    2
+#define FT_TURBULENT_SHARP    3
+#define FT_DYNAMIC            4
 
+#define NT_BLOCK              0
+#define NT_LINEAR             1
+#define NT_SOFT_LINEAR        2
+#define NT_SPLINE             3
 
+#define OVERFLOW_TYPE_CLIP          0
+#define OVERFLOW_TYPE_SOFT_CLAMP    1
+#define OVERFLOW_TYPE_WRAP_BACK     2
+#define OVERFLOW_TYPE_ALLOW_HDR     3
 
 // Hash function
 #define HASHSCALE3 float3(.1031, .1030, .0973)
@@ -48,13 +61,13 @@ float turbulentSharp(float f) {
 
 float selectFractal(float f, int fractalType) {
     float ret = 0.;
-    if (fractalType == 0) {
+    if (fractalType == FT_BASIC) {
         ret = basic(f);
-    } else if (fractalType == 1) {
+    } else if (fractalType == FT_TURBULENT_SMOOTH) {
         ret = turbulentSmooth(f);
-    } else if (fractalType == 2) {
+    } else if (fractalType == FT_TURBULENT_BASIC) {
         ret = turbulentBasic(f);
-    } else if (fractalType == 3) {
+    } else if (fractalType == FT_TURBULENT_SHARP) {
         ret = turbulentSharp(f);
     } else {
         ret = basic(f);
@@ -78,7 +91,7 @@ float selectCycle(float value, float base, float period, bool cycleRevolution) {
 
 float block(float2 coord, float depth, int seed, bool cycleRevolution, int cycle, float evolution, bool centerSubscale) {
   float randf = float(seed);
-  if (centerSubscale) randf += depth;
+  if (!centerSubscale) randf += depth;
   float3 hash = hash33(float3(floor(coord), randf));
   float freq = hash.x; // random freq for each coord
   float period = 1. + floor(freq * float(cycle + 1));
@@ -171,13 +184,13 @@ float allowHdrResultsOverflow(float value) {
 
 float selectOverflow(float value, int overflow) {
     float ret = 0.;
-    if (overflow == 0) {
+    if (overflow == OVERFLOW_TYPE_CLIP) {
         ret = clipOverflow(value);
-    } else if (overflow == 1) {
+    } else if (overflow == OVERFLOW_TYPE_SOFT_CLAMP) {
         ret = softClampOverflow(value);
-    } else if (overflow == 2) {
+    } else if (overflow == OVERFLOW_TYPE_WRAP_BACK) {
         ret = wrapBackOverflow(value);
-    } else if (overflow == 3) {
+    } else if (overflow == OVERFLOW_TYPE_ALLOW_HDR) {
         ret = allowHdrResultsOverflow(value);
     } else {
         ret = allowHdrResultsOverflow(value);
@@ -203,15 +216,15 @@ float layer(float2 fragCoord, int noiseType, int fractalType, float depth, int s
 }
 
 float3x3 inverseMatrix(float2 translate, float rotate, float2 scale) {
-  return transpose(float3x3(
-    cos(-rotate)/scale.x, -sin(-rotate)/scale.x, -translate.x,
-    sin(-rotate)/scale.y, cos(-rotate)/scale.y, -translate.y,
+  return float3x3(
+    cos(-rotate)/scale.x, -sin(-rotate)/scale.x, cos(-rotate)/scale.x * translate.x - sin(-rotate)/scale.x * translate.y,
+    sin(-rotate)/scale.y,  cos(-rotate)/scale.y, sin(-rotate)/scale.y * translate.x + cos(-rotate)/scale.y * translate.y,
     0., 0., 1.
-  ));
+  );
 }
 
 float4 FractalNoise( float2 fragCoord, int noiseType, int fractalType, int overflow, float contrast, float brightness, bool shouldInvert, float subInfluence, float2 subOffset, float subRotation, float subScaling, float complexity, int seed, bool cycleRevolution, int cycle, float evolution, bool centerSubscale) {
-  float3x3 m = inverseMatrix(subOffset, subRotation * TAU, float2(subScaling, subScaling));
+  float3x3 m = inverseMatrix(float2(0.0, 0.0), subRotation, float2(subScaling, subScaling));
   
   float val = 0.;
   

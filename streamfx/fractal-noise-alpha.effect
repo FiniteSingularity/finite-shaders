@@ -6,6 +6,140 @@ uniform float4 Time<
 	bool automatic = true;
 >;
 
+
+uniform int a_FractalType<
+  string name = "Fractal Type";
+  string field_type = "enum";
+  int enum_0 = FT_BASIC;
+  string enum_0_name = "Basic";
+  int enum_1 = FT_TURBULENT_SMOOTH;
+  string enum_1_name = "Turbulent Smooth";
+  int enum_2 = FT_TURBULENT_BASIC;
+  string enum_2_name = "Turbulent Basic";
+  int enum_3 = FT_TURBULENT_SHARP;
+  string enum_3_name = "Turbulent Sharp";
+  int enum_4 = FT_DYNAMIC;
+  string enum_4_name = "Dynamic";
+> = FT_BASIC;
+
+uniform int a_NoiseType<
+  string name = "Noise Type";
+  string field_type = "enum";
+  int enum_0 = NT_BLOCK;
+  string enum_0_name = "Block";
+  int enum_1 = NT_LINEAR;
+  string enum_1_name = "Linear";
+  int enum_2 = NT_SOFT_LINEAR;
+  string enum_2_name = "Soft Linear";
+  int enum_3 = NT_SPLINE;
+  string enum_3_name = "Spline";
+> = NT_BLOCK;
+
+uniform bool a_ShouldInvert<
+  string name = "Invert";
+> = false;
+
+uniform float b_Contrast<
+  string name = "Contrast";
+  string field_type = "slider";
+  float minimum = 0.0;
+  float maximum = 2.0;
+  float step = 0.01;
+> = 1.;
+
+uniform float c_Brightness<
+  string name = "Brightness";
+  string field_type = "slider";
+  float minimum = -1.0;
+  float maximum = 1.0;
+  float step = 0.01;
+> = 0.;
+
+uniform int c_Overflow<
+  string name = "Overflow";
+  string field_type = "enum";
+  int enum_0 = OVERFLOW_TYPE_CLIP;
+  string enum_0_name = "Clip";
+  int enum_1 = OVERFLOW_TYPE_SOFT_CLAMP;
+  string enum_1_name = "Soft Clamp";
+  int enum_2 = OVERFLOW_TYPE_WRAP_BACK;
+  string enum_2_name = "Wrap Back";
+  int enum_3 = OVERFLOW_TYPE_ALLOW_HDR;
+  string enum_3_name = "Allow HDR Results";
+> = OVERFLOW_TYPE_ALLOW_HDR;
+
+uniform float d_Rotation<
+  string name = "Rotation";
+  string field_type = "slider";
+  float minimum = -5000.0;
+  float maximum = 5000.0;
+  float step = 0.1;
+  float scale = 0.0174533;
+> = 0.0;
+
+uniform float2 d_Scale<
+	string name = "Scale (width, height)";
+	string field_type = "slider";
+	float2 minimum = {1.0., 1.0};
+	float2 maximum = {255., 255.};
+	float2 step = {0.1, 0.1};
+> = {32.0, 32.0};
+
+uniform float2 e_OffsetTurbulence<
+	string name = "Offset Turbulence";
+	string field_type = "slider";
+	float2 minimum = {-5000., -5000.};
+	float2 maximum = {5000., 5000.};
+	float2 step = {0.1, 0.1};
+> = { 960.0, 540.0 };
+
+uniform float f_Complexity<
+  string name = "Complexity";
+  string field_type = "slider";
+  float minimum = 1.0;
+  float maximum = 10.0;
+  float step = 0.1;
+> = 6.0;
+
+uniform float g_SubInfluence<
+  string name = "Sub Influence (%)";
+  string field_type = "slider";
+  float minimum = 25.0;
+  float maximum = 100.0;
+  float step = 0.1;
+  float scale = 0.01;
+> = 70.0;
+
+uniform float g_SubScaling<
+  string name = "Sub Scaling (%)";
+  string field_type = "slider";
+  float minimum = 25.0;
+  float maximum = 100.0;
+  float step = 0.1;
+  float scale = 0.01;
+> = 56.0;
+
+uniform float h_SubRotation<
+  string name = "Sub Rotation";
+  string field_type = "slider";
+  float minimum = -360.0;
+  float maximum = 360.0;
+  float step = 0.1;
+  float scale = 0.0174533;
+> = 0.0;
+
+uniform float2 i_SubOffset<
+	string name = "Sub Offset";
+	string field_type = "slider";
+	float2 minimum = {-5000., -5000.};
+	float2 maximum = {5000., 5000.};
+	float2 step = {0.1, 0.1};
+> = { 0.0, 0.0 };
+
+uniform bool j_CenterSubscale<
+  string name = "Center Subscale";
+> = false;
+
 uniform int RNGSeed<
   string name = "RNG Seed";
   string field_type = "slider";
@@ -17,42 +151,10 @@ uniform int RNGSeed<
 uniform float EvolutionRate<
   string name = "Evolution Rate";
   string field_type = "slider";
-  float minimum = 0.02;
+  float minimum = 0.0;
   float maximum = 50.0;
   float step = 0.01;
-> = 50.0;
-
-uniform float Contrast<
-  string name = "Contrast";
-  string field_type = "slider";
-  float minimum = 0.0;
-  float maximum = 2.0;
-  float step = 0.01;
-> = 1.;
-
-uniform float Radius<
-  string name = "Circle Radius";
-  string field_type = "slider";
-  float minimum = 0.0;
-  float maximum = 4000.0;
-  float step = 1.0;
-> = 100.0;
-
-uniform float Brightness<
-  string name = "Brightness";
-  string field_type = "slider";
-  float minimum = -1.0;
-  float maximum = 1.0;
-  float step = 0.01;
-> = 0.;
-
-uniform float2 Scale<
-	string name = "Noise Scale (x, y)";
-	string field_type = "slider";
-	float2 minimum = {1.0., 1.0};
-	float2 maximum = {255., 255.};
-	float2 step = {0.1, 0.1};
-> = {32.0, 32.0};
+> = 1.0;
 
 uniform float Displace<
   string name = "Displacement Size";
@@ -62,48 +164,6 @@ uniform float Displace<
   float step = 0.1;
 > = 0.0;
 
-uniform bool ShouldInvert<
-  string name = "Should Invert";
-> = false;
-
-#define BASIC 0
-#define TURBULENT_SMOOTH   1
-#define TURBULENT_BASIC    2
-#define TURBULENT_SHARP    3
-#define DYNAMIC            4
-uniform int FractalType<
-  string name = "Fractal Type";
-  string field_type = "enum";
-  int enum_0 = BASIC;
-  string enum_0_name = "Basic";
-  int enum_1 = TURBULENT_SMOOTH;
-  string enum_1_name = "Turbulent Smooth";
-  int enum_2 = TURBULENT_BASIC;
-  string enum_2_name = "Turbulent Basic";
-  int enum_3 = TURBULENT_SHARP;
-  string enum_3_name = "Turbulent Sharp";
-  int enum_4 = DYNAMIC;
-  string enum_4_name = "Dynamic";
-> = 0;
-
-
-#define BLOCK 0
-#define LINEAR   1
-#define SOFT_LINEAR    2
-#define SPLINE    3
-uniform int NoiseType<
-  string name = "Noise Type";
-  string field_type = "enum";
-  int enum_0 = BLOCK;
-  string enum_0_name = "Block";
-  int enum_1 = LINEAR;
-  string enum_1_name = "Linear";
-  int enum_2 = SOFT_LINEAR;
-  string enum_2_name = "Soft Linear";
-  int enum_3 = SPLINE;
-  string enum_3_name = "Spline";
-> = 0;
-
 sampler_state ClampSampler {
 	AddressU  = Clamp;
 	AddressV  = Clamp;
@@ -111,30 +171,11 @@ sampler_state ClampSampler {
 };
 
 float4 PSDefault(VertData v_in) : TARGET {
-  // Settings:
-  float contrast = 1.;
-  float brightness = 0.;
-  /*
-  * 0: clip
-  * 1: soft clamp
-  * 2: wrap back
-  * 3: allow hdr results
-  */
-  int overflow = 3;
-
-  // transform
-  float rotation = 0.; // in Period
-  float2 scale = float2(Scale.x, Scale.y);
-  float2 offsetTurbulence = float2(0., 0.);
-
-  float complexity = 5.;
-
   // sub settings
   float subInfluence = 0.7;
   float subScaling = 0.57;
   float subRotation = 0.; // in Period
   float2 subOffset = float2(0., 0.);
-  bool centerSubscale = false;
 
   float evolution = Time.x * EvolutionRate; // in Period
   bool cycleRevolution = false;
@@ -145,10 +186,29 @@ float4 PSDefault(VertData v_in) : TARGET {
   float2 coord = v_in.uv * ViewSize.xy;
 
   float2 flipCoord = flip(coord);
-  float3x3 trans = inverseMatrix(offsetTurbulence, rotation * TAU, scale);
+  float3x3 trans = inverseMatrix(float2(0.0, 0.0), d_Rotation, d_Scale);
+  flipCoord = flipCoord - e_OffsetTurbulence;
   flipCoord = mul(trans, float3(flipCoord.x, flipCoord.y, 1.)).xy;
-
-  float val = FractalNoise(flipCoord, NoiseType, FractalType, overflow, Contrast, Brightness, ShouldInvert, subInfluence, subOffset, subRotation, subScaling, complexity, randomSeed, cycleRevolution, cycle, evolution, centerSubscale);
+  
+  float val = FractalNoise(
+    flipCoord,
+    a_NoiseType,
+    a_FractalType,
+    c_Overflow,
+    b_Contrast,
+    c_Brightness, 
+    a_ShouldInvert,
+    g_SubInfluence,
+    i_SubOffset,
+    h_SubRotation,
+    g_SubScaling,
+    f_Complexity,
+    randomSeed,
+    cycleRevolution,
+    cycle, 
+    evolution,
+    j_CenterSubscale
+  );
 
   return float4(1.0, 1.0, 1.0, val);
 }
